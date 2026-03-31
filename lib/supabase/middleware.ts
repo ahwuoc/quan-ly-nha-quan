@@ -28,11 +28,6 @@ export async function updateSession(request: NextRequest) {
       },
     }
   );
-
-  // IMPORTANT: Avoid writing any logic between createServerClient and
-  // getUser(). A simple mistake can make it very hard to debug
-  // issues with sessions being lost.
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -66,27 +61,25 @@ export async function updateSession(request: NextRequest) {
         console.warn(`[Security] Forbidden access attempt by ${user.email} to ${tenantSlug} (${isApi ? 'API' : 'Page'})`);
 
         if (isApi) {
-          // If it's an API, return a 403 Forbidden JSON
           return NextResponse.json(
             { error: "Forbidden: You do not have access to this tenant" },
             { status: 403 }
           );
         } else {
-          // If it's a Page, redirect to selection page
           const url = request.nextUrl.clone();
           url.pathname = "/tenants";
-          return NextResponse.redirect(url);
+          const response = NextResponse.redirect(url);
+          response.cookies.set("last_admin_path", "", { expires: new Date(0), path: "/" });
+          response.cookies.set("last_tenant_slug", "", { expires: new Date(0), path: "/" });
+          return response;
         }
       }
     }
   }
-
-  // 3. GUEST GUARD: Redirect logged users away from auth pages
   if (user && pathname.startsWith("/auth")) {
     const url = request.nextUrl.clone();
-    url.pathname = "/tenants"; // Go to selection page after login
+    url.pathname = "/tenants"; 
     return NextResponse.redirect(url);
   }
-
   return supabaseResponse;
 }
