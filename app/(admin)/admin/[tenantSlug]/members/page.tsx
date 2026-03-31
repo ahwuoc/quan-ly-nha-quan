@@ -25,6 +25,11 @@ interface Member {
   created_at: string;
 }
 
+interface SubscriptionLimit {
+  maxMembers: number;
+  currentMembers: number;
+}
+
 const ROLE_CONFIG: Record<Role, { label: string; icon: React.ElementType; color: string; bg: string; desc: string }> = {
   owner:  { label: "Chủ sở hữu", icon: Crown,     color: "text-amber-600",  bg: "bg-amber-50 border-amber-200",  desc: "Toàn quyền, không thể bị xóa hay thay đổi" },
   admin:  { label: "Quản lý",    icon: Shield,     color: "text-blue-600",   bg: "bg-blue-50 border-blue-200",    desc: "Quản lý menu, bàn, đơn hàng, nhân viên" },
@@ -34,6 +39,7 @@ const ROLE_CONFIG: Record<Role, { label: string; icon: React.ElementType; color:
 export default function MembersPage() {
   const { tenantSlug } = useParams() as { tenantSlug: string };
   const [members, setMembers] = useState<Member[]>([]);
+  const [limits, setLimits] = useState<SubscriptionLimit>({ maxMembers: 3, currentMembers: 0 });
   const [currentRole, setCurrentRole] = useState<Role | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -50,6 +56,10 @@ export default function MembersPage() {
       if (data.members) {
         setMembers(data.members);
         setCurrentRole(data.currentRole);
+        setLimits({
+          maxMembers: data.maxMembers || 3,
+          currentMembers: data.members.length,
+        });
       }
     } finally {
       setLoading(false);
@@ -102,6 +112,11 @@ export default function MembersPage() {
             <h1 className="text-2xl font-bold tracking-tight">Quản lý nhân sự</h1>
           </div>
           <p className="text-muted-foreground text-sm">{members.length} thành viên trong nhà hàng này.</p>
+          {limits.currentMembers >= limits.maxMembers && (
+            <p className="text-xs text-amber-600 font-bold mt-1">
+              ⚠️ Đã đạt giới hạn {limits.maxMembers} thành viên
+            </p>
+          )}
         </div>
         <Button variant="outline" size="sm" onClick={fetch_} disabled={loading} className="rounded-full font-black text-[10px] uppercase shadow-sm">
           <RefreshCw className={cn("size-3 mr-1", loading && "animate-spin")} /> Làm mới
@@ -159,13 +174,16 @@ export default function MembersPage() {
             </DropdownMenu>
             <Button
               onClick={handleInvite}
-              disabled={saving || !inviteEmail.trim()}
+              disabled={saving || !inviteEmail.trim() || limits.currentMembers >= limits.maxMembers}
               className="h-12 rounded-2xl font-black text-xs uppercase tracking-widest px-6 shadow-lg shadow-primary/20"
             >
               {saving ? <RefreshCw className="size-4 animate-spin" /> : <><Plus className="size-4 mr-1" /> Thêm</>}
             </Button>
           </div>
-          <p className="text-[10px] text-slate-400 font-medium">Nếu email chưa có tài khoản, hệ thống sẽ gửi lời mời qua email.</p>
+          <p className="text-[10px] text-slate-400 font-medium">
+            Nếu email chưa có tài khoản, hệ thống sẽ gửi lời mời qua email. 
+            ({limits.currentMembers}/{limits.maxMembers} thành viên)
+          </p>
         </div>
       )}
 

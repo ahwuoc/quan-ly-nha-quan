@@ -1,5 +1,4 @@
-import { createServerClient } from "@/lib/supabase/server";
-import { createClient } from "@supabase/supabase-js";
+import { createServerClient, createServiceClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 async function getTenantId(slug: string) {
@@ -20,7 +19,6 @@ async function getCurrentUserRole(supabase: any, tenantId: string) {
   return data?.role ?? null;
 }
 
-// GET - list all members
 export async function GET(_req: Request, { params }: { params: Promise<{ tenantSlug: string }> }) {
   const { tenantSlug } = await params;
   const supabase = await createServerClient();
@@ -30,6 +28,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenantS
   const role = await getCurrentUserRole(supabase, tenantId);
   if (!role) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { data: subscription } = await supabase
+    .from("subscriptions")
+    .select("plan:plans(max_members)")
+    .eq("tenant_id", tenantId)
+    .single();
+
+  const maxMembers = (subscription?.plan as any)?.[0]?.max_members || 3;
+
   const { data, error } = await supabase
     .from("tenant_users")
     .select("id, role, created_at, user_id")
@@ -38,12 +44,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenantS
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Fetch emails from auth.users via service role
-  const serviceSupabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-
+  const serviceSupabase = createServiceClient();
   const userIds = (data || []).map((m: any) => m.user_id);
   const { data: authUsers } = await serviceSupabase.auth.admin.listUsers();
   const emailMap: Record<string, string> = {};
@@ -56,10 +57,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenantS
     email: emailMap[m.user_id] ?? "—",
   }));
 
-  return NextResponse.json({ members, currentRole: role });
+  return NextResponse.json({ members, currentRole: role, maxMembers });
 }
 
-// POST - invite new member
 export async function POST(req: Request, { params }: { params: Promise<{ tenantSlug: string }> }) {
   const { tenantSlug } = await params;
   const { email, role } = await req.json();
@@ -81,10 +81,30 @@ export async function POST(req: Request, { params }: { params: Promise<{ tenantS
     return NextResponse.json({ error: "Only owner can assign admin role" }, { status: 403 });
   }
 
-  const serviceSupabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  // Check subscription limits
+  const { data: subscription } = await supabase
+    .from("subscriptions")
+    .select("plan:plans(max_members)")
+    .eq("tenant_id", tenantId)
+    .single();
+
+  const maxMembers = (subscription?.plan as any)?.[0]?.max_members || 3;
+
+  const { count: currentMembers } = await supabase
+    .from("tenant_users")
+    .select("*", { count: "exact", head: true })
+    .eq("tenant_id", tenantId);
+
+  if ((currentMembers || 0) >= maxMembers) {
+    return NextResponse.json(
+      { 
+        error: `Đã đạt giới hạn ${maxMembers} thành viên. Vui lòng nâng cấp gói để thêm thành viên.` 
+      },
+      { status: 403 }
+    );
+  }
+
+  const serviceSupabase = createServiceClient();
 
   // Find or create user by email
   const { data: authUsers } = await serviceSupabase.auth.admin.listUsers();
@@ -141,7 +161,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ tenant
     .update({ role })
     .eq("id", memberId)
     .eq("tenant_id", tenantId)
-    .neq("role", "owner"); // cannot change owner
+    .neq("role", "owner");
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });

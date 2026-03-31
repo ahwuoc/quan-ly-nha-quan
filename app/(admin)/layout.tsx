@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
-import { usePathname, useParams } from "next/navigation";
-import { LayoutDashboard, UtensilsCrossed, Grid3x3, Tag, ShoppingCart, Shield, ChevronLeft, TrendingUp, Bell, Users } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { usePathname, useParams, useRouter } from "next/navigation";
+import { LayoutDashboard, UtensilsCrossed, Grid3x3, Tag, ShoppingCart, Shield, ChevronLeft, TrendingUp, Bell, Users, Key } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { Toaster, toast } from "sonner";
@@ -73,6 +73,7 @@ function Sidebar() {
     { href: `/admin/${tenantSlug}/categories`, label: "Danh mục", icon: Tag },
     { href: `/admin/${tenantSlug}/tables`, label: "Sơ đồ bàn", icon: Grid3x3 },
     { href: `/admin/${tenantSlug}/members`, label: "Nhân sự", icon: Users },
+    { href: `/admin/${tenantSlug}/permissions`, label: "Phân quyền", icon: Key },
     { href: `/admin/${tenantSlug}/settings`, label: "Cài đặt bảo mật", icon: Shield },
   ];
 
@@ -124,12 +125,72 @@ function Sidebar() {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const params = useParams();
+  const router = useRouter();
+  const tenantSlug = params.tenantSlug as string;
+  const [isChecking, setIsChecking] = useState(true);
+  const [isDeleted, setIsDeleted] = useState(false);
 
   useEffect(() => {
     if (pathname && pathname.startsWith("/admin/")) {
       document.cookie = `last_admin_path=${pathname}; expires=${new Date(Date.now() + 7 * 864e5).toUTCString()}; path=/`;
     }
   }, [pathname]);
+
+  // Check if tenant is deleted
+  useEffect(() => {
+    if (!tenantSlug) return;
+
+    async function checkTenant() {
+      try {
+        const res = await fetch(`/api/tenants/check?slug=${tenantSlug}`);
+        const data = await res.json();
+        
+        if (!res.ok || data.deleted) {
+          setIsDeleted(true);
+          
+          // Clear cookies to prevent redirect loop
+          document.cookie = "last_admin_path=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+          document.cookie = "last_tenant_slug=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+          
+          toast.error("Nhà hàng này đã bị tạm dừng hoạt động", {
+            description: "Bạn sẽ được chuyển về trang chủ",
+            duration: 2000,
+          });
+          
+          setTimeout(() => {
+            router.push("/tenants");
+          }, 2000);
+        } else {
+          setIsChecking(false);
+        }
+      } catch (error) {
+        console.error("Failed to check tenant:", error);
+        setIsChecking(false);
+      }
+    }
+
+    checkTenant();
+  }, [tenantSlug, router]);
+
+  if (isChecking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="size-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (isDeleted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <p className="text-lg font-medium text-muted-foreground">Nhà hàng đã bị tạm dừng</p>
+          <p className="text-sm text-muted-foreground">Đang chuyển hướng...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen">

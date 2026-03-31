@@ -45,6 +45,7 @@ function TenantsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [archivedTenants, setArchivedTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteConfig, setDeleteConfig] = useState<{ id: string; name: string; hard: boolean } | null>(null);
   const [confirmText, setConfirmText] = useState("");
@@ -80,6 +81,15 @@ function TenantsContent() {
     } finally {
       setLoading(false);
     }
+
+    // Fetch archived tenants
+    try {
+      const res = await fetch("/api/tenants?archived=true");
+      const data = await res.json();
+      if (res.ok) setArchivedTenants(data);
+    } catch {}
+
+    // Fetch subscription info
     try {
       const res = await fetch("/api/tenants/subscription");
       const data = await res.json();
@@ -108,6 +118,21 @@ function TenantsContent() {
         setConfirmText("");
       } else {
         alert("Xóa thất bại. Chỉ chủ sở hữu mới có quyền này.");
+      }
+    } catch (e) {
+      alert("Lỗi kết nối");
+    }
+  }
+
+  async function restoreTenant(tenantId: string) {
+    try {
+      const res = await fetch(`/api/tenants?id=${tenantId}&restore=true`, {
+        method: "PATCH",
+      });
+      if (res.ok) {
+        fetchTenants();
+      } else {
+        alert("Khôi phục thất bại");
       }
     } catch (e) {
       alert("Lỗi kết nối");
@@ -217,6 +242,56 @@ function TenantsContent() {
             </div>
           ))}
         </div>
+
+        {/* Archived Tenants Section */}
+        {archivedTenants.length > 0 && (
+          <div className="space-y-4 pt-4 border-t border-slate-100">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="size-5 text-amber-500" />
+              <h2 className="text-xl font-black text-slate-700">Nhà hàng đã tạm dừng ({archivedTenants.length})</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {archivedTenants.map((tenant) => (
+                <Card key={tenant.id} className="relative bg-slate-50 border-slate-200 rounded-2xl opacity-75">
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="size-12 bg-slate-200 rounded-xl flex items-center justify-center">
+                          <Store className="size-5 text-slate-400" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-700">{tenant.name}</h3>
+                          <p className="text-xs text-slate-400 font-mono">{tenant.slug}</p>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200">
+                        Đã tạm dừng
+                      </Badge>
+                    </div>
+                    <div className="mt-4 flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => restoreTenant(tenant.id)}
+                        className="flex-1 rounded-xl border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+                      >
+                        Khôi phục
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setDeleteConfig({ id: tenant.id, name: tenant.name, hard: true })}
+                        className="rounded-xl border-red-200 text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
 
         <footer className="text-center pt-8">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">

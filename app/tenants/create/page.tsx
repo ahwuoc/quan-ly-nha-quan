@@ -12,6 +12,7 @@ export default function CreateTenantPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
   const [form, setForm] = useState({
     tenantName: "",
     tenantSlug: "",
@@ -35,7 +36,13 @@ export default function CreateTenantPage() {
         return;
       }
 
-      router.push("/tenants");
+      // Show success message
+      setSuccess(true);
+      
+      // Redirect after 1.5 seconds
+      setTimeout(() => {
+        router.push("/tenants");
+      }, 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -152,13 +159,27 @@ export default function CreateTenantPage() {
                   </div>
                 )}
 
+                {success && (
+                  <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 animate-in fade-in slide-in-from-top-2">
+                    <p className="text-sm text-emerald-600 font-medium flex items-center gap-2">
+                      <CheckCircle2 className="size-4" />
+                      Tạo nhà hàng thành công! Đang chuyển hướng...
+                    </p>
+                  </div>
+                )}
+
                 <Button 
                   type="submit" 
-                  disabled={loading} 
+                  disabled={loading || success} 
                   className="w-full h-11 text-base mt-2"
                   size="lg"
                 >
-                  {loading ? (
+                  {success ? (
+                    <>
+                      <CheckCircle2 className="size-4 mr-2 animate-pulse" />
+                      Thành công!
+                    </>
+                  ) : loading ? (
                     <>
                       <span className="animate-spin mr-2">⏳</span>
                       Đang tạo...
