@@ -124,12 +124,7 @@ export default function TableMenu() {
       .find((row) => row.startsWith("table_session_id="))
       ?.split("=")[1];
 
-    if (!cookieValue) {
-      console.log("[Guest] No session cookie found, skipping order fetch");
-      return;
-    }
-
-    console.log(`[Guest] Fetching orders for Table: ${tableId}, Session: ${cookieValue}`);
+    if (!cookieValue) return;
 
     const { data, error } = await supabase
       .from("orders")
@@ -140,10 +135,7 @@ export default function TableMenu() {
       .in("status", ["pending", "preparing", "completed"])
       .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("[Guest] Fetch error:", error);
-    } else {
-      console.log(`[Guest] Received ${data?.length || 0} active orders`);
+    if (!error && data) {
       setActiveOrders(data || []);
     }
   }
@@ -152,7 +144,6 @@ export default function TableMenu() {
     if (!tenantSlug) return;
     supabase.from("tenants").select("id").eq("slug", tenantSlug).single().then(({ data }: { data: any }) => {
       if (data) {
-        console.log(`[Guest] Tenant identified: ${data.id}`);
         setTenantId(data.id);
         fetchAllData();
       }
@@ -162,16 +153,11 @@ export default function TableMenu() {
   useEffect(() => {
     if (!tenantId || !tableId) return;
 
-    // Initial fetch
     fetchActiveOrders(tenantId);
     
-    // Polling every 3 seconds as fallback
     const pollInterval = setInterval(() => {
-      console.log("[Guest] Polling for updates...");
       fetchActiveOrders(tenantId);
     }, 3000);
-
-    console.log(`[Guest] Subscribing to Realtime for Table ${tableId}...`);
     
     const channel = supabase
       .channel(`rt-table-${tableId}-${Date.now()}`, {
@@ -188,38 +174,13 @@ export default function TableMenu() {
           table: "orders",
           filter: `table_id=eq.${tableId}`
         },
-        (payload) => {
-          console.log("🔥 [KITCHEN UPDATE] New event received!", payload.eventType, payload.new);
+        () => {
           fetchActiveOrders(tenantId);
         }
       )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "tables",
-          filter: `id=eq.${tableId}`
-        },
-        (payload) => {
-          console.log("🔥 [TABLE UPDATE] Table status changed!", payload.new);
-        }
-      )
-      .subscribe((status, err) => {
-        console.log(`📡 [Realtime Status]: ${status} (Table ${tableId})`);
-        if (err) {
-          console.error("❌ [Realtime Error]:", err);
-        }
-        if (status === 'SUBSCRIBED') {
-          console.log("✅ [Realtime] Successfully subscribed!");
-        }
-        if (status === 'CHANNEL_ERROR') {
-          console.error("❌ [Realtime] Channel error - using polling fallback");
-        }
-      });
+      .subscribe();
 
     return () => {
-      console.log(`[Guest] Cleaning up Realtime for Table ${tableId}`);
       clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
@@ -284,12 +245,8 @@ export default function TableMenu() {
   }
 
   async function handleSendOrder() {
-    if (cartCount === 0 || isSubmitting) {
-      console.log("[Guest] Blocked: cartCount=", cartCount, "isSubmitting=", isSubmitting);
-      return;
-    }
+    if (cartCount === 0 || isSubmitting) return;
     
-    console.log("[Guest] Starting order submission...");
     setIsSubmitting(true);
     
     try {
@@ -297,8 +254,6 @@ export default function TableMenu() {
         const item = items.find(i => i.id === itemId);
         return { menu_item_id: itemId, quantity, unit_price: item?.price || 0 };
       });
-      
-      console.log("[Guest] Sending order:", { table_id: tableId, items: orderItems });
       
       const res = await fetch(`/api/tenants/${tenantSlug}/orders`, {
         method: "POST",
@@ -309,21 +264,17 @@ export default function TableMenu() {
       const data = await res.json();
       
       if (!res.ok) {
-        console.error("[Guest] Order failed:", data);
         throw new Error(data.error || "Failed");
       }
       
-      console.log("[Guest] Order success:", data);
       setCart({});
       setShowConfirm(false);
       setShowSuccess(true);
       await fetchActiveOrders(tenantId);
     } catch (error) {
-      console.error("[Guest] Order error:", error);
       alert("Lỗi khi gửi đơn hàng!");
     } finally {
       setIsSubmitting(false);
-      console.log("[Guest] Order submission complete");
     }
   }
 
@@ -376,7 +327,7 @@ export default function TableMenu() {
                 )}
               </Button>
             </div>
-          </div>cl
+          </div>
         </div>
 
         {!showHistory ? (
@@ -528,82 +479,73 @@ export default function TableMenu() {
               )}
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-4">
               {activeOrders.length === 0 ? (
-                <div className="py-24 text-center bg-slate-50/50 rounded-[48px] border-2 border-dashed border-slate-100">
-                  <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Bạn chưa gọi món nào</p>
-                </div>
+                <Card className="p-12 text-center">
+                  <p className="text-muted-foreground">Bạn chưa gọi món nào</p>
+                </Card>
               ) : activeOrders.map((order) => (
-                <div key={order.id} className="bg-white border border-slate-100 rounded-[40px] p-6 space-y-4 shadow-sm relative overflow-hidden group">
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-400">
-                    <span className="uppercase tracking-[0.1em]">Đơn #{order.id.slice(-4).toUpperCase()}</span>
+                <Card key={order.id} className="p-4">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
+                    <span>Đơn #{order.id.slice(-4).toUpperCase()}</span>
                     <span>{new Date(order.created_at).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {order.order_items.map((it) => {
                       const St = statusMap[order.status as keyof typeof statusMap] || statusMap.pending;
+                      const Icon = St.icon;
                       return (
                         <div key={it.id} className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <span className="size-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-[10px] font-black">{it.quantity}</span>
-                            <span className="text-sm font-bold text-slate-700">{it.menu_item?.name || "Món đã bị ngưng"}</span>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className="h-6 w-6 p-0 justify-center">
+                              {it.quantity}
+                            </Badge>
+                            <span className="text-sm font-medium">{it.menu_item?.name || "Món đã ngưng"}</span>
                           </div>
-                          <div className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase", St.color)}>
+                          <Badge variant="outline" className="gap-1">
+                            <Icon className="size-3" />
                             {St.label}
-                          </div>
+                          </Badge>
                         </div>
                       );
                     })}
                   </div>
-                </div>
+                </Card>
               ))}
             </div>
           </div>
         )}
 
-        <div className="fixed bottom-6 left-6 right-6 z-[100] space-y-3">
-
-          {trackingSummary.totalActive > 0 && (
-            <div
+        {/* Fixed Bottom Actions */}
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t space-y-2">
+          {trackingSummary.totalActive > 0 && !showHistory && (
+            <Button
+              variant="secondary"
+              className="w-full justify-between"
               onClick={() => setShowHistory(true)}
-              className="w-full bg-slate-900/95 backdrop-blur-xl py-3.5 px-6 rounded-[24px] border border-white/10 flex items-center justify-between shadow-2xl cursor-pointer animate-in slide-in-from-bottom duration-500"
             >
-              <div className="flex items-center gap-3">
-                <div className="size-8 bg-primary rounded-xl flex items-center justify-center text-white">
-                  <Utensils className="size-4" />
-                </div>
-                <div className="text-left">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Tiến độ bếp</p>
-                  <p className="text-[13px] font-bold text-white leading-none">
-                    {trackingSummary.totalActive} món đang thực hiện
-                  </p>
-                </div>
+              <div className="flex items-center gap-2">
+                <ChefHat className="size-4" />
+                <span>{trackingSummary.totalActive} món đang chuẩn bị</span>
               </div>
-              <ChevronRight className="size-5 text-white/40" />
-            </div>
+              <ChevronRight className="size-4" />
+            </Button>
           )}
 
-          {/* Cart Bar */}
           {cartCount > 0 && !showHistory && (
             <Button
+              size="lg"
+              className="w-full justify-between"
               onClick={() => setShowConfirm(true)}
               disabled={isSubmitting}
-              className="w-full h-18 rounded-[30px] bg-primary border-[6px] border-white shadow-[0_20px_40px_-15px_rgba(0,0,0,0.3)] active:scale-95 transition-all text-white flex items-center justify-between px-8 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <div className="flex items-center gap-4">
-                <div className="size-10 bg-white/20 rounded-2xl flex items-center justify-center relative">
-                  <ShoppingCart className="size-5 text-white" />
-                  <span className="absolute -top-2 -right-2 size-6 bg-slate-900 text-white text-[11px] font-black rounded-full flex items-center justify-center border-2 border-primary">
-                    {cartCount}
-                  </span>
-                </div>
-                <div className="text-left">
-                  <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-0.5 leading-none">Tổng đơn hàng</p>
-                  <p className="text-xl font-black text-white tracking-tighter leading-none">{cartTotal.toLocaleString()}đ</p>
-                </div>
+              <div className="flex items-center gap-2">
+                <ShoppingCart className="size-4" />
+                <span>{cartCount} món</span>
               </div>
-              <div className="flex items-center gap-2 font-black uppercase text-[10px] tracking-widest bg-white/10 px-4 py-2 rounded-xl">
-                XÁC NHẬN
+              <div className="flex items-center gap-2">
+                <span className="font-bold">{cartTotal.toLocaleString()}đ</span>
+                <span>→</span>
               </div>
             </Button>
           )}
