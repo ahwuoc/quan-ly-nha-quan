@@ -24,11 +24,15 @@ export async function GET(request: Request) {
 
     const { data, error } = await query;
 
-    if (error) throw error;
+    if (error) {
+      console.error("[Tenants GET Error]", error);
+      throw error;
+    }
 
     const tenants = data?.map((item: any) => item.tenants) || [];
     return NextResponse.json(tenants);
   } catch (error) {
+    console.error("[Tenants GET Catch]", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }

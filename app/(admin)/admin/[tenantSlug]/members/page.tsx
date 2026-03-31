@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { Users, Crown, Shield, UserCheck, Trash2, Plus, Mail, RefreshCw, ChevronDown } from "lucide-react";
+import { Users, Crown, Shield, UserCheck, Trash2, Plus, Mail, RefreshCw, ChevronDown, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +46,7 @@ export default function MembersPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
   const [deleteTarget, setDeleteTarget] = useState<Member | null>(null);
+  const [resetPasswordTarget, setResetPasswordTarget] = useState<Member | null>(null);
 
   useEffect(() => { fetch_(); }, [tenantSlug]);
   async function fetch_() {
@@ -76,9 +77,17 @@ export default function MembersPage() {
         body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
       });
       const data = await res.json();
-      if (!res.ok) { alert(data.error); return; }
+      console.log("Add member response:", { status: res.status, data });
+      if (!res.ok) { 
+        alert(data.error || "Thêm thất bại"); 
+        return; 
+      }
       setInviteEmail("");
       await fetch_();
+      alert("Thêm thành viên thành công!");
+    } catch (err) {
+      console.error("Add member error:", err);
+      alert("Lỗi kết nối");
     } finally {
       setSaving(false);
     }
@@ -97,6 +106,24 @@ export default function MembersPage() {
     await fetch(`/api/admin/${tenantSlug}/members?id=${memberId}`, { method: "DELETE" });
     setDeleteTarget(null);
     await fetch_();
+  }
+
+  async function handleResetPassword(email: string) {
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (res.ok) {
+        alert(`Đã gửi email đặt lại mật khẩu đến ${email}`);
+        setResetPasswordTarget(null);
+      } else {
+        alert("Gửi email thất bại");
+      }
+    } catch {
+      alert("Lỗi kết nối");
+    }
   }
 
   const isOwner = currentRole === "owner";
@@ -233,13 +260,23 @@ export default function MembersPage() {
               )}
 
               {canDelete && (
-                <Button
-                  variant="ghost" size="icon"
-                  className="size-9 rounded-xl text-slate-300 hover:text-red-500 hover:bg-red-50 shrink-0"
-                  onClick={() => setDeleteTarget(member)}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
+                <>
+                  <Button
+                    variant="ghost" size="icon"
+                    className="size-9 rounded-xl text-slate-300 hover:text-amber-500 hover:bg-amber-50 shrink-0"
+                    onClick={() => setResetPasswordTarget(member)}
+                    title="Đặt lại mật khẩu"
+                  >
+                    <KeyRound className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost" size="icon"
+                    className="size-9 rounded-xl text-slate-300 hover:text-red-500 hover:bg-red-50 shrink-0"
+                    onClick={() => setDeleteTarget(member)}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </>
               )}
             </div>
           );
@@ -262,6 +299,31 @@ export default function MembersPage() {
               onClick={() => deleteTarget && handleDelete(deleteTarget.id)}
             >
               Xóa
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reset password confirm */}
+      <AlertDialog open={!!resetPasswordTarget} onOpenChange={open => !open && setResetPasswordTarget(null)}>
+        <AlertDialogContent className="rounded-[32px] border-none p-8 max-w-sm">
+          <AlertDialogHeader>
+            <div className="size-16 mx-auto bg-amber-50 rounded-2xl flex items-center justify-center mb-4">
+              <KeyRound className="size-8 text-amber-500" />
+            </div>
+            <AlertDialogTitle className="text-xl font-black uppercase tracking-tight text-center">Đặt lại mật khẩu?</AlertDialogTitle>
+            <AlertDialogDescription className="font-medium text-slate-500 text-center">
+              Gửi email đặt lại mật khẩu đến<br />
+              <span className="font-black text-slate-900">{resetPasswordTarget?.email}</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="pt-4 gap-3">
+            <AlertDialogCancel className="rounded-2xl border-none bg-slate-100 font-bold h-12">Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-black h-12 px-6"
+              onClick={() => resetPasswordTarget && handleResetPassword(resetPasswordTarget.email)}
+            >
+              Gửi email
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -34,8 +34,6 @@ export default function LoginPage() {
         setError(data.error || "Login failed");
         return;
       }
-
-      // Redirect to tenants page
       router.push("/tenants");
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -65,7 +63,12 @@ export default function LoginPage() {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="password">Mật khẩu</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Mật khẩu</Label>
+                <a href="/auth/forgot-password" className="text-xs text-primary hover:underline">
+                  Quên mật khẩu?
+                </a>
+              </div>
               <Input
                 id="password"
                 type="password"

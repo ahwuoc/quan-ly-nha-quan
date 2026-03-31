@@ -50,12 +50,19 @@ export async function POST(request: Request) {
       );
     }
 
-    // Add user as owner
-    await supabase.from("tenant_users").insert({
+    // Add user as owner (use upsert to avoid duplicate key error)
+    const { error: ownerError } = await supabase.from("tenant_users").upsert({
       tenant_id: tenantData.id,
       user_id: user.id,
       role: "owner",
+    }, {
+      onConflict: "tenant_id,user_id",
+      ignoreDuplicates: true,
     });
+
+    if (ownerError) {
+      console.error("Failed to add owner:", ownerError);
+    }
 
     // Assign free plan with 30-day expiry
     const expires = new Date();

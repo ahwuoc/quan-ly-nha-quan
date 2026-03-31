@@ -90,6 +90,7 @@ export default function TableMenu() {
   const [showBill, setShowBill] = useState(false);
   const [paymentRequested, setPaymentRequested] = useState(false);
   const [requestingPayment, setRequestingPayment] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function fetchAllData() {
     try {
@@ -161,10 +162,24 @@ export default function TableMenu() {
   useEffect(() => {
     if (!tenantId || !tableId) return;
 
+    // Initial fetch
     fetchActiveOrders(tenantId);
+    
+    // Polling every 3 seconds as fallback
+    const pollInterval = setInterval(() => {
+      console.log("[Guest] Polling for updates...");
+      fetchActiveOrders(tenantId);
+    }, 3000);
+
     console.log(`[Guest] Subscribing to Realtime for Table ${tableId}...`);
+    
     const channel = supabase
-      .channel(`rt-table-${tableId}`)
+      .channel(`rt-table-${tableId}-${Date.now()}`, {
+        config: {
+          broadcast: { self: true },
+          presence: { key: tableId }
+        }
+      })
       .on(
         "postgres_changes",
         {
@@ -178,12 +193,34 @@ export default function TableMenu() {
           fetchActiveOrders(tenantId);
         }
       )
-      .subscribe((status) => {
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "tables",
+          filter: `id=eq.${tableId}`
+        },
+        (payload) => {
+          console.log("🔥 [TABLE UPDATE] Table status changed!", payload.new);
+        }
+      )
+      .subscribe((status, err) => {
         console.log(`📡 [Realtime Status]: ${status} (Table ${tableId})`);
+        if (err) {
+          console.error("❌ [Realtime Error]:", err);
+        }
+        if (status === 'SUBSCRIBED') {
+          console.log("✅ [Realtime] Successfully subscribed!");
+        }
+        if (status === 'CHANNEL_ERROR') {
+          console.error("❌ [Realtime] Channel error - using polling fallback");
+        }
       });
 
     return () => {
       console.log(`[Guest] Cleaning up Realtime for Table ${tableId}`);
+      clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
   }, [tenantId, tableId]);
@@ -247,23 +284,46 @@ export default function TableMenu() {
   }
 
   async function handleSendOrder() {
-    if (cartCount === 0) return;
+    if (cartCount === 0 || isSubmitting) {
+      console.log("[Guest] Blocked: cartCount=", cartCount, "isSubmitting=", isSubmitting);
+      return;
+    }
+    
+    console.log("[Guest] Starting order submission...");
+    setIsSubmitting(true);
+    
     try {
       const orderItems = Object.entries(cart).map(([itemId, quantity]) => {
         const item = items.find(i => i.id === itemId);
         return { menu_item_id: itemId, quantity, unit_price: item?.price || 0 };
       });
+      
+      console.log("[Guest] Sending order:", { table_id: tableId, items: orderItems });
+      
       const res = await fetch(`/api/tenants/${tenantSlug}/orders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ table_id: tableId, items: orderItems }),
       });
-      if (!res.ok) throw new Error("Failed");
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        console.error("[Guest] Order failed:", data);
+        throw new Error(data.error || "Failed");
+      }
+      
+      console.log("[Guest] Order success:", data);
       setCart({});
       setShowConfirm(false);
       setShowSuccess(true);
+      await fetchActiveOrders(tenantId);
     } catch (error) {
+      console.error("[Guest] Order error:", error);
       alert("Lỗi khi gửi đơn hàng!");
+    } finally {
+      setIsSubmitting(false);
+      console.log("[Guest] Order submission complete");
     }
   }
 
@@ -338,39 +398,49 @@ export default function TableMenu() {
               </div>
             </div>
 
-            {/* Premium Menu Grid - THE MAIN FIX */}
-            <div className="px-8 md:px-12 py-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10 md:gap-12 mt-4 pb-20">
+            {/* Optimized Menu Grid for Mobile - Compact View */}
+            <div className="px-4 md:px-12 py-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-8 mt-2 pb-20">
               {filteredItems.map(item => (
-                <div key={item.id} className="flex flex-col group animate-in fade-in slide-in-from-bottom-8 duration-700">
-                  <div className="aspect-[4/3] w-full rounded-[48px] overflow-hidden bg-slate-50 shadow-inner relative mb-6">
+                <div key={item.id} className="flex flex-col group animate-in fade-in slide-in-from-bottom-4 duration-500 bg-white rounded-3xl md:rounded-[48px] overflow-hidden border border-slate-100 shadow-sm hover:shadow-xl transition-all">
+                  {/* Compact Image */}
+                  <div className="aspect-square w-full overflow-hidden bg-slate-50 relative">
                     <img
                       src={item.image_url || `https://ui-avatars.com/api/?name=${item.name}&background=f1f5f9&color=64748b&bold=true`}
-                      className="size-full object-cover group-hover:scale-110 transition-transform duration-1000"
+                      className="size-full object-cover group-hover:scale-110 transition-transform duration-700"
+                      alt={item.name}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   </div>
 
-                  <div className="flex-1 space-y-3 px-2">
-                    <div className="flex justify-between items-start">
-                      <h3 className="font-black text-2xl text-slate-900 tracking-tight leading-tight line-clamp-1">{item.name}</h3>
-                    </div>
-                    <p className="text-xs font-semibold text-slate-400 line-clamp-2 leading-relaxed italic">{item.description || "Thực phẩm tươi sạch, nêm nếm đậm đà vừa miệng."}</p>
-
-                    <div className="flex items-center justify-between pt-6">
-                      <span className="text-3xl font-black text-primary tracking-tighter">
-                        {item.price.toLocaleString()}<span className="text-sm ml-1">đ</span>
+                  {/* Compact Info */}
+                  <div className="flex-1 p-3 md:p-5 space-y-2 md:space-y-3">
+                    <h3 className="font-black text-sm md:text-lg text-slate-900 tracking-tight leading-tight line-clamp-2">{item.name}</h3>
+                    
+                    {/* Price & Add Button */}
+                    <div className="flex flex-col gap-2 pt-1">
+                      <span className="text-lg md:text-2xl font-black text-primary tracking-tighter">
+                        {item.price.toLocaleString()}<span className="text-xs ml-0.5">đ</span>
                       </span>
 
-                      <div className="flex items-center bg-slate-900 text-white rounded-[24px] p-1.5 shadow-2xl shadow-slate-200">
+                      <div className="flex items-center bg-slate-900 text-white rounded-2xl md:rounded-[24px] p-1 shadow-lg">
                         {cart[item.id] > 0 ? (
-                          <div className="flex items-center">
-                            <button onClick={() => setCart(p => ({ ...p, [item.id]: Math.max(0, p[item.id] - 1) }))} className="size-10 rounded-full hover:bg-white/10 flex items-center justify-center text-slate-300 active:scale-90 transition-all font-bold text-xl"><Minus size={16} /></button>
-                            <span className="w-10 text-center font-black text-base">{cart[item.id]}</span>
-                            <button onClick={() => setCart(p => ({ ...p, [item.id]: (p[item.id] || 0) + 1 }))} className="size-10 rounded-full hover:bg-white/10 flex items-center justify-center text-white active:scale-90 transition-all font-bold text-xl"><Plus size={16} /></button>
+                          <div className="flex items-center w-full justify-between">
+                            <button 
+                              onClick={() => setCart(p => ({ ...p, [item.id]: Math.max(0, p[item.id] - 1) }))} 
+                              className="size-8 md:size-10 rounded-full hover:bg-white/10 flex items-center justify-center text-slate-300 active:scale-90 transition-all"
+                            >
+                              <Minus size={14} />
+                            </button>
+                            <span className="flex-1 text-center font-black text-sm md:text-base">{cart[item.id]}</span>
+                            <button 
+                              onClick={() => setCart(p => ({ ...p, [item.id]: (p[item.id] || 0) + 1 }))} 
+                              className="size-8 md:size-10 rounded-full hover:bg-white/10 flex items-center justify-center text-white active:scale-90 transition-all"
+                            >
+                              <Plus size={14} />
+                            </button>
                           </div>
                         ) : (
                           <Button
-                            className="h-10 md:h-12 rounded-full text-[10px] font-black uppercase tracking-widest px-6 hover:bg-primary transition-all active:scale-95"
+                            className="h-8 md:h-10 w-full rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest hover:bg-primary transition-all active:scale-95"
                             onClick={() => setCart(p => ({ ...p, [item.id]: (p[item.id] || 0) + 1 }))}
                           >
                             THÊM
@@ -382,7 +452,7 @@ export default function TableMenu() {
                 </div>
               ))}
               {filteredItems.length === 0 && (
-                <div className="col-span-full py-40 text-center text-slate-300 font-bold italic">Không tìm thấy món bạn yêu cầu</div>
+                <div className="col-span-full py-20 text-center text-slate-300 font-bold italic text-sm">Không tìm thấy món bạn yêu cầu</div>
               )}
             </div>
           </>
@@ -467,7 +537,8 @@ export default function TableMenu() {
           {cartCount > 0 && !showHistory && (
             <Button
               onClick={() => setShowConfirm(true)}
-              className="w-full h-18 rounded-[30px] bg-primary border-[6px] border-white shadow-[0_20px_40px_-15px_rgba(0,0,0,0.3)] active:scale-95 transition-all text-white flex items-center justify-between px-8"
+              disabled={isSubmitting}
+              className="w-full h-18 rounded-[30px] bg-primary border-[6px] border-white shadow-[0_20px_40px_-15px_rgba(0,0,0,0.3)] active:scale-95 transition-all text-white flex items-center justify-between px-8 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="flex items-center gap-4">
                 <div className="size-10 bg-white/20 rounded-2xl flex items-center justify-center relative">
@@ -513,7 +584,9 @@ export default function TableMenu() {
               <span className="font-black text-slate-400 uppercase text-xs">Tổng cộng</span>
               <span className="text-3xl font-black text-primary tracking-tighter">{cartTotal.toLocaleString()}đ</span>
             </div>
-            <Button onClick={handleSendOrder} className="w-full h-16 rounded-[28px] font-black text-xl shadow-xl shadow-primary/20 mt-4">GỬI BẾP NGAY</Button>
+            <Button onClick={handleSendOrder} disabled={isSubmitting} className="w-full h-16 rounded-[28px] font-black text-xl shadow-xl shadow-primary/20 mt-4">
+              {isSubmitting ? "ĐANG GỬI..." : "GỬI BẾP NGAY"}
+            </Button>
           </DialogContent>
         </Dialog>
 

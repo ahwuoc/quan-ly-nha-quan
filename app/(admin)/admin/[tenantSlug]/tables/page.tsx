@@ -61,6 +61,9 @@ export default function TablesPage() {
   const [checkoutModal, setCheckoutModal] = useState<{ open: boolean; item?: Table }>({ open: false });
   const [baseUrl, setBaseUrl] = useState("");
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [billItems, setBillItems] = useState<Array<{ id: string; name: string; quantity: number; price: number; originalQty: number }>>([]);
+  const [billAdjustments, setBillAdjustments] = useState<Array<{ item: string; reason: string; change: number }>>([]);
+  const [adjustmentReason, setAdjustmentReason] = useState("");
 
   useEffect(() => {
     setMounted(true);
@@ -118,6 +121,18 @@ export default function TablesPage() {
     if (saving) return;
     setSaving(true);
     try {
+      // Save adjustments if any
+      if (billAdjustments.length > 0) {
+        await fetch(`/api/admin/${tenantSlug}/tables/${tableId}/bill-adjustments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            adjustments: billAdjustments,
+            finalItems: billItems 
+          }),
+        });
+      }
+
       await fetch(`/api/admin/${tenantSlug}/tables/${tableId}/payment-request`, { method: "DELETE" });
       const res = await fetch(`/api/admin/${tenantSlug}/tables/checkout`, {
         method: "POST",
@@ -127,6 +142,9 @@ export default function TablesPage() {
       if (!res.ok) throw new Error("Thanh toán thất bại");
       await fetchData();
       setCheckoutModal({ open: false });
+      setBillItems([]);
+      setBillAdjustments([]);
+      setAdjustmentReason("");
     } catch (error) {
       console.error("Checkout error:", error);
       alert("Lỗi khi thanh toán. Vui lòng thử lại.");
