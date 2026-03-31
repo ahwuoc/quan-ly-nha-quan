@@ -334,53 +334,74 @@ export default function TableMenu() {
   );
 
   return (
-    <div className="min-h-screen bg-[#fcfcfc] flex justify-center pb-40 font-sans transition-all duration-500 overflow-x-hidden md:items-center md:py-20">
-      <div className="w-full max-w-5xl bg-white min-h-screen md:min-h-[85vh] md:rounded-[60px] md:shadow-2xl md:shadow-slate-200/50 relative shadow-none border-x border-slate-100 overflow-x-hidden no-scrollbar">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 flex justify-center pb-32 font-sans transition-all duration-500 overflow-x-hidden md:items-center md:py-12">
+      <div className="w-full max-w-6xl bg-white min-h-screen md:min-h-[90vh] md:rounded-[48px] md:shadow-2xl md:shadow-slate-900/10 relative shadow-none overflow-hidden">
 
-        <div className="p-8 pb-4 pt-12 md:pt-16 md:px-12">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h1 className="text-4xl md:text-6xl font-black text-slate-900 tracking-tighter uppercase leading-none">@{tenantSlug}</h1>
-              <div className="flex items-center gap-2 mt-4 md:mt-6">
-                <Badge className="bg-slate-100 text-slate-500 border-none font-black text-[10px] md:text-xs px-4 py-2 rounded-full flex items-center gap-2 shadow-sm uppercase tracking-widest">
-                  <div className="size-2 bg-emerald-500 rounded-full animate-pulse" />
-                  Bàn số {tableNumber || "..."}
-                </Badge>
+        {/* Decorative Background Elements */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl -z-10" />
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl -z-10" />
+
+        {/* Header */}
+        <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-xl border-b border-slate-100 shadow-sm">
+          <div className="p-5 md:p-8">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <h1 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight leading-none mb-2">
+                  {tenantSlug}
+                </h1>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white border-none font-bold text-[10px] px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg shadow-emerald-500/20">
+                    <MapPin className="size-3" />
+                    Bàn {tableNumber || "..."}
+                  </Badge>
+                  {trackingSummary.totalActive > 0 && (
+                    <Badge className="bg-gradient-to-r from-orange-500 to-orange-600 text-white border-none font-bold text-[10px] px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg shadow-orange-500/20 animate-pulse">
+                      <ChefHat className="size-3" />
+                      {trackingSummary.totalActive} món đang nấu
+                    </Badge>
+                  )}
+                </div>
               </div>
+              <Button
+                size="icon"
+                variant="outline"
+                className="size-14 md:size-16 rounded-2xl border-2 border-slate-200 bg-white hover:bg-slate-50 shadow-lg hover:shadow-xl active:scale-95 transition-all relative group"
+                onClick={() => setShowHistory(!showHistory)}
+              >
+                <History className="size-5 md:size-6 text-slate-600 group-hover:text-primary transition-colors" />
+                {trackingSummary.totalItems > 0 && (
+                  <span className="absolute -top-2 -right-2 size-6 bg-gradient-to-br from-primary to-rose-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-lg animate-bounce">
+                    {trackingSummary.totalItems}
+                  </span>
+                )}
+              </Button>
             </div>
-            <Button
-              size="icon"
-              variant="outline"
-              className="size-16 md:size-20 rounded-[32px] md:rounded-[40px] border-slate-100 bg-white shadow-xl shadow-slate-100 active:scale-90 transition-all relative"
-              onClick={() => setShowHistory(!showHistory)}
-            >
-              <History className="size-6 md:size-8 text-slate-600" />
-              {trackingSummary.totalItems > 0 && (
-                <span className="absolute -top-1 -right-1 size-7 bg-primary text-white text-[10px] md:text-xs font-black rounded-full flex items-center justify-center border-4 border-white shadow-lg">
-                  {trackingSummary.totalItems}
-                </span>
-              )}
-            </Button>
-          </div>
+          </div>cl
         </div>
 
         {!showHistory ? (
           <>
-            {/* Soft Search & Tabs */}
-            <div className="px-6 md:px-12 py-6 pb-2 sticky top-0 bg-white/80 backdrop-blur-md z-40 space-y-6 md:space-y-8">
+            {/* Search & Category Tabs */}
+            <div className="px-4 md:px-8 py-4 space-y-4">
               <div className="relative group">
-                <Search className="absolute left-6 top-1/2 -translate-y-1/2 size-5 md:size-6 text-slate-300 group-focus-within:text-primary transition-all" />
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 size-5 text-slate-400 group-focus-within:text-primary transition-colors" />
                 <Input
-                  placeholder="Hôm nay bạn muốn dùng gì?"
-                  className="pl-16 h-16 md:h-20 rounded-[32px] bg-slate-50 border-none text-[16px] font-bold placeholder:text-slate-300 focus-visible:ring-primary/10 transition-all"
+                  placeholder="Tìm món ăn yêu thích..."
+                  className="pl-14 h-14 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-primary/20 text-base font-medium placeholder:text-slate-400 focus-visible:ring-0 transition-all shadow-sm"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <div className="flex gap-4 overflow-x-auto no-scrollbar py-2">
+              
+              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 -mx-4 px-4">
                 <Button
                   variant={activeCategory === "all" ? "default" : "secondary"}
-                  className={cn("h-12 md:h-14 rounded-[28px] px-8 md:px-10 font-black text-xs md:text-sm uppercase transition-all whitespace-nowrap", activeCategory === "all" ? "shadow-xl shadow-primary/20" : "bg-white text-slate-400 border border-slate-100")}
+                  className={cn(
+                    "h-11 rounded-xl px-6 font-bold text-sm transition-all whitespace-nowrap flex-shrink-0",
+                    activeCategory === "all" 
+                      ? "bg-gradient-to-r from-primary to-rose-500 text-white shadow-lg shadow-primary/30" 
+                      : "bg-white text-slate-600 border-2 border-slate-100 hover:border-slate-200"
+                  )}
                   onClick={() => setActiveCategory("all")}
                 >
                   Tất cả
@@ -389,7 +410,12 @@ export default function TableMenu() {
                   <Button
                     key={cat.id}
                     variant={activeCategory === cat.id ? "default" : "secondary"}
-                    className={cn("h-12 md:h-14 rounded-[28px] px-8 md:px-10 font-black text-xs md:text-sm uppercase transition-all whitespace-nowrap", activeCategory === cat.id ? "shadow-xl shadow-primary/20" : "bg-white text-slate-400 border border-slate-100")}
+                    className={cn(
+                      "h-11 rounded-xl px-6 font-bold text-sm transition-all whitespace-nowrap flex-shrink-0",
+                      activeCategory === cat.id 
+                        ? "bg-gradient-to-r from-primary to-rose-500 text-white shadow-lg shadow-primary/30" 
+                        : "bg-white text-slate-600 border-2 border-slate-100 hover:border-slate-200"
+                    )}
                     onClick={() => setActiveCategory(cat.id)}
                   >
                     {cat.name}
@@ -398,52 +424,70 @@ export default function TableMenu() {
               </div>
             </div>
 
-            {/* Optimized Menu Grid for Mobile - Compact View */}
-            <div className="px-4 md:px-12 py-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-8 mt-2 pb-20">
+            {/* Menu Grid - Beautiful Cards */}
+            <div className="px-4 md:px-8 py-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pb-32">
               {filteredItems.map(item => (
-                <div key={item.id} className="flex flex-col group animate-in fade-in slide-in-from-bottom-4 duration-500 bg-white rounded-3xl md:rounded-[48px] overflow-hidden border border-slate-100 shadow-sm hover:shadow-xl transition-all">
-                  {/* Compact Image */}
-                  <div className="aspect-square w-full overflow-hidden bg-slate-50 relative">
+                <div 
+                  key={item.id} 
+                  className="group animate-in fade-in slide-in-from-bottom-4 duration-500 bg-white rounded-3xl overflow-hidden border-2 border-slate-100 hover:border-primary/30 shadow-sm hover:shadow-xl transition-all"
+                >
+                  {/* Image with Gradient Overlay */}
+                  <div className="aspect-square w-full overflow-hidden bg-gradient-to-br from-slate-100 to-slate-50 relative">
                     <img
-                      src={item.image_url || `https://ui-avatars.com/api/?name=${item.name}&background=f1f5f9&color=64748b&bold=true`}
+                      src={item.image_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name)}&background=f1f5f9&color=64748b&bold=true&size=400`}
                       className="size-full object-cover group-hover:scale-110 transition-transform duration-700"
                       alt={item.name}
+                      loading="lazy"
                     />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
 
-                  {/* Compact Info */}
-                  <div className="flex-1 p-3 md:p-5 space-y-2 md:space-y-3">
-                    <h3 className="font-black text-sm md:text-lg text-slate-900 tracking-tight leading-tight line-clamp-2">{item.name}</h3>
+                  {/* Info Section */}
+                  <div className="p-4 space-y-3">
+                    <div>
+                      <h3 className="font-black text-sm leading-tight line-clamp-2 text-slate-900 group-hover:text-primary transition-colors">
+                        {item.name}
+                      </h3>
+                      {item.description && (
+                        <p className="text-[10px] text-slate-400 line-clamp-1 mt-1 font-medium">
+                          {item.description}
+                        </p>
+                      )}
+                    </div>
                     
-                    {/* Price & Add Button */}
-                    <div className="flex flex-col gap-2 pt-1">
-                      <span className="text-lg md:text-2xl font-black text-primary tracking-tighter">
-                        {item.price.toLocaleString()}<span className="text-xs ml-0.5">đ</span>
-                      </span>
+                    <div className="flex items-end justify-between gap-2">
+                      <div className="flex flex-col">
+                        <span className="text-xs text-slate-400 font-medium">Giá</span>
+                        <span className="text-xl font-black text-primary tracking-tight">
+                          {item.price.toLocaleString()}<span className="text-xs">đ</span>
+                        </span>
+                      </div>
 
-                      <div className="flex items-center bg-slate-900 text-white rounded-2xl md:rounded-[24px] p-1 shadow-lg">
+                      {/* Add to Cart Button */}
+                      <div className="flex-1">
                         {cart[item.id] > 0 ? (
-                          <div className="flex items-center w-full justify-between">
+                          <div className="flex items-center bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-xl p-1 shadow-lg">
                             <button 
                               onClick={() => setCart(p => ({ ...p, [item.id]: Math.max(0, p[item.id] - 1) }))} 
-                              className="size-8 md:size-10 rounded-full hover:bg-white/10 flex items-center justify-center text-slate-300 active:scale-90 transition-all"
+                              className="size-8 rounded-lg hover:bg-white/10 flex items-center justify-center active:scale-90 transition-all"
                             >
                               <Minus size={14} />
                             </button>
-                            <span className="flex-1 text-center font-black text-sm md:text-base">{cart[item.id]}</span>
+                            <span className="flex-1 text-center font-black text-sm">{cart[item.id]}</span>
                             <button 
                               onClick={() => setCart(p => ({ ...p, [item.id]: (p[item.id] || 0) + 1 }))} 
-                              className="size-8 md:size-10 rounded-full hover:bg-white/10 flex items-center justify-center text-white active:scale-90 transition-all"
+                              className="size-8 rounded-lg hover:bg-white/10 flex items-center justify-center active:scale-90 transition-all"
                             >
                               <Plus size={14} />
                             </button>
                           </div>
                         ) : (
                           <Button
-                            className="h-8 md:h-10 w-full rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest hover:bg-primary transition-all active:scale-95"
-                            onClick={() => setCart(p => ({ ...p, [item.id]: (p[item.id] || 0) + 1 }))}
+                            className="h-9 w-full rounded-xl text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-primary to-rose-500 hover:from-primary/90 hover:to-rose-500/90 shadow-lg shadow-primary/20 active:scale-95 transition-all"
+                            onClick={() => setCart(p => ({ ...p, [item.id]: 1 }))}
                           >
-                            THÊM
+                            <Plus size={12} className="mr-1" />
+                            Thêm
                           </Button>
                         )}
                       </div>
@@ -452,7 +496,13 @@ export default function TableMenu() {
                 </div>
               ))}
               {filteredItems.length === 0 && (
-                <div className="col-span-full py-20 text-center text-slate-300 font-bold italic text-sm">Không tìm thấy món bạn yêu cầu</div>
+                <div className="col-span-full py-24 text-center">
+                  <div className="size-20 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center">
+                    <Search className="size-10 text-slate-300" />
+                  </div>
+                  <p className="text-slate-400 font-bold">Không tìm thấy món ăn phù hợp</p>
+                  <p className="text-xs text-slate-300 mt-1">Thử tìm kiếm với từ khóa khác</p>
+                </div>
               )}
             </div>
           </>

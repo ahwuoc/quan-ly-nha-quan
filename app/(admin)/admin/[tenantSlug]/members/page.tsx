@@ -130,37 +130,37 @@ export default function MembersPage() {
   const isAdminOrOwner = currentRole === "owner" || currentRole === "admin";
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
+    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-4 md:space-y-8 animate-in fade-in duration-500">
       {/* Header */}
-      <div className="flex items-end justify-between">
+      <div className="flex items-end justify-between gap-3">
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-primary">
-            <Users className="size-5" />
-            <h1 className="text-2xl font-bold tracking-tight">Quản lý nhân sự</h1>
+            <Users className="size-4 md:size-5" />
+            <h1 className="text-lg md:text-2xl font-bold tracking-tight">Quản lý nhân sự</h1>
           </div>
-          <p className="text-muted-foreground text-sm">{members.length} thành viên trong nhà hàng này.</p>
+          <p className="text-xs md:text-sm text-muted-foreground">{members.length} thành viên trong nhà hàng này.</p>
           {limits.currentMembers >= limits.maxMembers && (
-            <p className="text-xs text-amber-600 font-bold mt-1">
+            <p className="text-[10px] md:text-xs text-amber-600 font-bold mt-1">
               ⚠️ Đã đạt giới hạn {limits.maxMembers} thành viên
             </p>
           )}
         </div>
-        <Button variant="outline" size="sm" onClick={fetch_} disabled={loading} className="rounded-full font-black text-[10px] uppercase shadow-sm">
-          <RefreshCw className={cn("size-3 mr-1", loading && "animate-spin")} /> Làm mới
+        <Button variant="outline" size="sm" onClick={fetch_} disabled={loading} className="rounded-full font-black text-[9px] md:text-[10px] uppercase shadow-sm h-8 md:h-9">
+          <RefreshCw className={cn("size-2.5 md:size-3 mr-1", loading && "animate-spin")} /> Làm mới
         </Button>
       </div>
 
       {/* Role legend */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
         {(Object.entries(ROLE_CONFIG) as [Role, typeof ROLE_CONFIG[Role]][]).map(([role, cfg]) => {
           const Icon = cfg.icon;
           return (
-            <div key={role} className={cn("rounded-[24px] border p-5 space-y-2", cfg.bg)}>
-              <div className="flex items-center gap-2">
-                <Icon className={cn("size-4", cfg.color)} />
-                <span className={cn("font-black text-sm uppercase tracking-widest", cfg.color)}>{cfg.label}</span>
+            <div key={role} className={cn("rounded-[18px] md:rounded-[24px] border p-4 md:p-5 space-y-2", cfg.bg)}>
+              <div className="flex items-center gap-1.5 md:gap-2">
+                <Icon className={cn("size-3 md:size-4", cfg.color)} />
+                <span className={cn("font-black text-[10px] md:text-sm uppercase tracking-widest", cfg.color)}>{cfg.label}</span>
               </div>
-              <p className="text-xs text-slate-500 leading-relaxed">{cfg.desc}</p>
+              <p className="text-[10px] md:text-xs text-slate-500 leading-relaxed">{cfg.desc}</p>
             </div>
           );
         })}
@@ -168,46 +168,46 @@ export default function MembersPage() {
 
       {/* Invite form */}
       {isAdminOrOwner && (
-        <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm p-6 space-y-4">
-          <p className="font-black text-sm uppercase tracking-widest text-slate-500">Thêm thành viên mới</p>
-          <div className="flex gap-3">
+        <div className="bg-white rounded-[20px] md:rounded-[32px] border border-slate-100 shadow-sm p-4 md:p-6 space-y-3 md:space-y-4">
+          <p className="font-black text-[10px] md:text-sm uppercase tracking-widest text-slate-500">Thêm thành viên mới</p>
+          <div className="flex flex-col sm:flex-row gap-2 md:gap-3">
             <div className="relative flex-1">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+              <Mail className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 size-3 md:size-4 text-slate-400" />
               <Input
                 placeholder="Email nhân viên..."
                 value={inviteEmail}
                 onChange={e => setInviteEmail(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleInvite()}
-                className="pl-11 h-12 rounded-2xl bg-slate-50 border-none font-medium placeholder:text-slate-300"
+                className="pl-9 md:pl-11 h-10 md:h-12 rounded-xl md:rounded-2xl bg-slate-50 border-none font-medium placeholder:text-slate-300 text-sm"
               />
             </div>
             {/* Role selector */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-12 rounded-2xl border-slate-100 font-black text-xs uppercase tracking-widest gap-2 min-w-[130px]">
-                  {ROLE_CONFIG[inviteRole].label} <ChevronDown className="size-3" />
+                <Button variant="outline" className="h-10 md:h-12 rounded-xl md:rounded-2xl border-slate-100 font-black text-[10px] md:text-xs uppercase tracking-widest gap-2 min-w-[110px] md:min-w-[130px]">
+                  {ROLE_CONFIG[inviteRole].label} <ChevronDown className="size-2.5 md:size-3" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="rounded-2xl p-2">
+              <DropdownMenuContent className="rounded-xl md:rounded-2xl p-2">
                 {isOwner && (
-                  <DropdownMenuItem onClick={() => setInviteRole("admin")} className="rounded-xl font-bold">
-                    <Shield className="size-4 mr-2 text-blue-500" /> Quản lý
+                  <DropdownMenuItem onClick={() => setInviteRole("admin")} className="rounded-xl font-bold text-xs md:text-sm">
+                    <Shield className="size-3 md:size-4 mr-2 text-blue-500" /> Quản lý
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={() => setInviteRole("member")} className="rounded-xl font-bold">
-                  <UserCheck className="size-4 mr-2 text-slate-500" /> Nhân viên
+                <DropdownMenuItem onClick={() => setInviteRole("member")} className="rounded-xl font-bold text-xs md:text-sm">
+                  <UserCheck className="size-3 md:size-4 mr-2 text-slate-500" /> Nhân viên
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <Button
               onClick={handleInvite}
               disabled={saving || !inviteEmail.trim() || limits.currentMembers >= limits.maxMembers}
-              className="h-12 rounded-2xl font-black text-xs uppercase tracking-widest px-6 shadow-lg shadow-primary/20"
+              className="h-10 md:h-12 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-widest px-4 md:px-6 shadow-lg shadow-primary/20"
             >
-              {saving ? <RefreshCw className="size-4 animate-spin" /> : <><Plus className="size-4 mr-1" /> Thêm</>}
+              {saving ? <RefreshCw className="size-3 md:size-4 animate-spin" /> : <><Plus className="size-3 md:size-4 mr-1" /> Thêm</>}
             </Button>
           </div>
-          <p className="text-[10px] text-slate-400 font-medium">
+          <p className="text-[9px] md:text-[10px] text-slate-400 font-medium">
             Nếu email chưa có tài khoản, hệ thống sẽ gửi lời mời qua email. 
             ({limits.currentMembers}/{limits.maxMembers} thành viên)
           </p>
@@ -215,9 +215,9 @@ export default function MembersPage() {
       )}
 
       {/* Members list */}
-      <div className="space-y-3">
+      <div className="space-y-2 md:space-y-3">
         {loading ? (
-          [1,2,3].map(i => <div key={i} className="h-20 rounded-[24px] bg-muted/40 animate-pulse" />)
+          [1,2,3].map(i => <div key={i} className="h-16 md:h-20 rounded-[18px] md:rounded-[24px] bg-muted/40 animate-pulse" />)
         ) : members.map(member => {
           const cfg = ROLE_CONFIG[member.role];
           const Icon = cfg.icon;
@@ -225,13 +225,13 @@ export default function MembersPage() {
           const canDelete = isAdminOrOwner && member.role !== "owner";
 
           return (
-            <div key={member.id} className="bg-white rounded-[24px] border border-slate-100 shadow-sm px-6 py-4 flex items-center gap-4">
-              <div className={cn("size-10 rounded-2xl flex items-center justify-center border shrink-0", cfg.bg)}>
-                <Icon className={cn("size-5", cfg.color)} />
+            <div key={member.id} className="bg-white rounded-[18px] md:rounded-[24px] border border-slate-100 shadow-sm px-4 md:px-6 py-3 md:py-4 flex items-center gap-3 md:gap-4">
+              <div className={cn("size-8 md:size-10 rounded-xl md:rounded-2xl flex items-center justify-center border shrink-0", cfg.bg)}>
+                <Icon className={cn("size-4 md:size-5", cfg.color)} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-black text-slate-900 truncate">{member.email}</p>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                <p className="font-black text-sm md:text-base text-slate-900 truncate">{member.email}</p>
+                <p className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
                   Tham gia {new Date(member.created_at).toLocaleDateString("vi-VN")}
                 </p>
               </div>
@@ -240,21 +240,21 @@ export default function MembersPage() {
               {canEdit ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-black uppercase tracking-widest transition-all hover:opacity-80", cfg.bg, cfg.color)}>
-                      {cfg.label} <ChevronDown className="size-3" />
+                    <button className={cn("flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-1 md:py-1.5 rounded-lg md:rounded-xl border text-[9px] md:text-xs font-black uppercase tracking-widest transition-all hover:opacity-80", cfg.bg, cfg.color)}>
+                      {cfg.label} <ChevronDown className="size-2.5 md:size-3" />
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent className="rounded-2xl p-2">
-                    <DropdownMenuItem onClick={() => handleChangeRole(member.id, "admin")} className="rounded-xl font-bold">
-                      <Shield className="size-4 mr-2 text-blue-500" /> Quản lý
+                  <DropdownMenuContent className="rounded-xl md:rounded-2xl p-2">
+                    <DropdownMenuItem onClick={() => handleChangeRole(member.id, "admin")} className="rounded-xl font-bold text-xs md:text-sm">
+                      <Shield className="size-3 md:size-4 mr-2 text-blue-500" /> Quản lý
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleChangeRole(member.id, "member")} className="rounded-xl font-bold">
-                      <UserCheck className="size-4 mr-2 text-slate-500" /> Nhân viên
+                    <DropdownMenuItem onClick={() => handleChangeRole(member.id, "member")} className="rounded-xl font-bold text-xs md:text-sm">
+                      <UserCheck className="size-3 md:size-4 mr-2 text-slate-500" /> Nhân viên
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
-                <Badge className={cn("rounded-xl px-3 py-1.5 border font-black text-xs uppercase tracking-widest", cfg.bg, cfg.color)}>
+                <Badge className={cn("rounded-lg md:rounded-xl px-2 md:px-3 py-1 md:py-1.5 border font-black text-[9px] md:text-xs uppercase tracking-widest", cfg.bg, cfg.color)}>
                   {cfg.label}
                 </Badge>
               )}
@@ -263,18 +263,18 @@ export default function MembersPage() {
                 <>
                   <Button
                     variant="ghost" size="icon"
-                    className="size-9 rounded-xl text-slate-300 hover:text-amber-500 hover:bg-amber-50 shrink-0"
+                    className="size-8 md:size-9 rounded-lg md:rounded-xl text-slate-300 hover:text-amber-500 hover:bg-amber-50 shrink-0"
                     onClick={() => setResetPasswordTarget(member)}
                     title="Đặt lại mật khẩu"
                   >
-                    <KeyRound className="size-4" />
+                    <KeyRound className="size-3 md:size-4" />
                   </Button>
                   <Button
                     variant="ghost" size="icon"
-                    className="size-9 rounded-xl text-slate-300 hover:text-red-500 hover:bg-red-50 shrink-0"
+                    className="size-8 md:size-9 rounded-lg md:rounded-xl text-slate-300 hover:text-red-500 hover:bg-red-50 shrink-0"
                     onClick={() => setDeleteTarget(member)}
                   >
-                    <Trash2 className="size-4" />
+                    <Trash2 className="size-3 md:size-4" />
                   </Button>
                 </>
               )}

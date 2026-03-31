@@ -163,28 +163,29 @@ export default function CategoriesPage() {
   const maxSortOrder = categories.length > 0 ? Math.max(...categories.map((c: Category) => c.sort_order)) : 0;
 
   return (
-    <div className="p-6 flex flex-col gap-5">
-      <div className="flex items-center justify-between">
+    <div className="p-4 md:p-6 flex flex-col gap-4 md:gap-5">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Quản lý danh mục</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{categories.length} nhóm thực đơn đang có</p>
+          <h1 className="text-lg md:text-xl font-semibold">Quản lý danh mục</h1>
+          <p className="text-xs md:text-sm text-muted-foreground mt-0.5">{categories.length} nhóm thực đơn đang có</p>
         </div>
-        <Button size="sm" className="rounded-xl shadow-lg ring-offset-2 ring-primary/20 hover:ring-2 transition-all" onClick={() => setModal({ open: true })}>
-          <Plus className="mr-1 size-4" />
-          Thêm danh mục
+        <Button size="sm" className="rounded-xl shadow-lg ring-offset-2 ring-primary/20 hover:ring-2 transition-all h-9 md:h-10 text-xs" onClick={() => setModal({ open: true })}>
+          <Plus className="mr-1 size-3 md:size-4" />
+          <span className="hidden sm:inline">Thêm danh mục</span>
+          <span className="sm:hidden">Thêm</span>
         </Button>
       </div>
 
       <Separator />
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           {[1, 2, 3].map(i => (
-            <div key={i} className="h-40 rounded-[2rem] bg-muted/40 animate-pulse" />
+            <div key={i} className="h-40 rounded-[1.5rem] md:rounded-[2rem] bg-muted/40 animate-pulse" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           {categories.map((cat) => (
             <Card
               key={cat.id}
@@ -193,14 +194,14 @@ export default function CategoriesPage() {
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, cat.id)}
               className={cn(
-                "group relative border-primary/5 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 overflow-hidden rounded-[2.5rem] cursor-grab active:cursor-grabbing bg-white",
+                "group relative border-primary/5 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 overflow-hidden rounded-[1.5rem] md:rounded-[2.5rem] cursor-grab active:cursor-grabbing bg-white",
                 draggedId === cat.id && "scale-95 opacity-50 border-primary"
               )}
             >
-              <CardContent className="p-6 flex flex-col gap-6">
+              <CardContent className="p-4 md:p-6 flex flex-col gap-4 md:gap-6">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="size-20 rounded-3xl overflow-hidden bg-slate-50 flex items-center justify-center border-2 border-slate-50 group-hover:border-primary/20 transition-all">
+                  <div className="flex items-center gap-3 md:gap-4">
+                    <div className="size-16 md:size-20 rounded-2xl md:rounded-3xl overflow-hidden bg-slate-50 flex items-center justify-center border-2 border-slate-50 group-hover:border-primary/20 transition-all">
                       {cat.image_url ? (
                         <img
                           src={cat.image_url}
@@ -217,27 +218,27 @@ export default function CategoriesPage() {
                       )}
                     </div>
                     <div>
-                      <h3 className="font-black text-xl text-slate-800 leading-tight">{cat.name}</h3>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Sắp xếp: {cat.sort_order}</p>
+                      <h3 className="font-black text-base md:text-xl text-slate-800 leading-tight">{cat.name}</h3>
+                      <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Sắp xếp: {cat.sort_order}</p>
                     </div>
                   </div>
-                  <GripVertical className="size-5 text-slate-300 opacity-40 hover:opacity-100 transition-opacity" />
+                  <GripVertical className="size-4 md:size-5 text-slate-300 opacity-40 hover:opacity-100 transition-opacity" />
                 </div>
 
                 <div className="flex gap-2">
                   <Button
                     variant="secondary"
-                    className="flex-1 rounded-2xl h-12 font-bold shadow-sm"
+                    className="flex-1 rounded-xl md:rounded-2xl h-10 md:h-12 font-bold shadow-sm text-xs md:text-sm"
                     onClick={() => setModal({ open: true, item: cat })}
                   >
-                    <Pencil className="w-4 h-4 mr-1.5" /> Chỉnh sửa
+                    <Pencil className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-1.5" /> Chỉnh sửa
                   </Button>
                   <Button
                     variant="outline"
-                    className="size-12 rounded-2xl text-red-400 hover:text-red-600 hover:bg-red-50 border-none bg-slate-50 group-hover:bg-slate-100 transition-colors"
+                    className="size-10 md:size-12 rounded-xl md:rounded-2xl text-red-400 hover:text-red-600 hover:bg-red-50 border-none bg-slate-50 group-hover:bg-slate-100 transition-colors"
                     onClick={() => setDeleteTarget(cat)}
                   >
-                    <Trash2 className="w-5 h-5" />
+                    <Trash2 className="w-4 h-4 md:w-5 md:h-5" />
                   </Button>
                 </div>
               </CardContent>
@@ -247,15 +248,15 @@ export default function CategoriesPage() {
       )}
 
       {categories.length === 0 && !loading && (
-        <div className="text-center py-24 bg-muted/20 rounded-[2.5rem] border-2 border-dashed flex flex-col items-center gap-4">
-          <div className="bg-white size-16 rounded-full flex items-center justify-center shadow-lg">
-            <FolderOpen className="size-8 text-slate-300" />
+        <div className="text-center py-16 md:py-24 bg-muted/20 rounded-[1.5rem] md:rounded-[2.5rem] border-2 border-dashed flex flex-col items-center gap-3 md:gap-4">
+          <div className="bg-white size-12 md:size-16 rounded-full flex items-center justify-center shadow-lg">
+            <FolderOpen className="size-6 md:size-8 text-slate-300" />
           </div>
           <div className="space-y-1">
-            <p className="font-bold text-slate-900">Trống trơn</p>
-            <p className="text-sm text-slate-500">Bắt đầu tạo danh mục để tổ chức thực đơn nhà hàng.</p>
+            <p className="font-bold text-sm md:text-base text-slate-900">Trống trơn</p>
+            <p className="text-xs md:text-sm text-slate-500 px-4">Bắt đầu tạo danh mục để tổ chức thực đơn nhà hàng.</p>
           </div>
-          <Button variant="outline" className="mt-2 rounded-full" onClick={() => setModal({ open: true })}>
+          <Button variant="outline" className="mt-2 rounded-full h-9 md:h-10 text-xs md:text-sm" onClick={() => setModal({ open: true })}>
             Tạo danh mục đầu tiên
           </Button>
         </div>

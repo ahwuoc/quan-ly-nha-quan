@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   AreaChart,
   Area,
@@ -47,28 +48,28 @@ interface AnalysisData {
 }
 
 const MetricCard = ({ title, metric, icon: Icon, color }: { title: string, metric?: Metric, icon: any, color: string }) => (
-  <Card className="rounded-[40px] border-none shadow-2xl shadow-slate-200/50 overflow-hidden group">
-    <CardContent className="p-10 relative">
-      <div className={`absolute right-0 top-0 size-40 opacity-5 rounded-full -mr-16 -mt-16 group-hover:scale-125 transition-transform duration-700 ${color}`} />
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <div className={`size-14 text-white rounded-2xl flex items-center justify-center shadow-lg transition-transform group-hover:rotate-6 ${color}`}>
-            <Icon size={28} />
+  <Card className="rounded-[24px] md:rounded-[40px] border-none shadow-lg md:shadow-2xl shadow-slate-200/50 overflow-hidden group">
+    <CardContent className="p-6 md:p-10 relative">
+      <div className={`absolute right-0 top-0 size-32 md:size-40 opacity-5 rounded-full -mr-12 md:-mr-16 -mt-12 md:-mt-16 group-hover:scale-125 transition-transform duration-700 ${color}`} />
+      <div className="flex items-center justify-between mb-4 md:mb-6">
+        <div className="flex items-center gap-3 md:gap-4">
+          <div className={`size-10 md:size-14 text-white rounded-xl md:rounded-2xl flex items-center justify-center shadow-lg transition-transform group-hover:rotate-6 ${color}`}>
+            <Icon size={20} className="md:size-auto" />
           </div>
-          <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{title}</span>
+          <span className="text-[9px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest">{title}</span>
         </div>
         {metric && (
-          <div className={`flex items-center gap-1 font-black text-xs px-3 py-1.5 rounded-full ${metric.growth >= 0 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"}`}>
-            {metric.growth >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+          <div className={`flex items-center gap-1 font-black text-[10px] md:text-xs px-2 md:px-3 py-1 md:py-1.5 rounded-full ${metric.growth >= 0 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"}`}>
+            {metric.growth >= 0 ? <ArrowUpRight size={12} className="md:size-auto" /> : <ArrowDownRight size={12} className="md:size-auto" />}
             {Math.abs(metric.growth)}%
           </div>
         )}
       </div>
       <div className="flex items-baseline gap-2">
-        <h2 className="text-4xl font-black text-slate-900 tracking-tighter">
+        <h2 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tighter">
           {(metric?.value || 0).toLocaleString()}
         </h2>
-        <span className="text-sm font-bold text-slate-400 uppercase tracking-tighter">VNĐ</span>
+        <span className="text-xs md:text-sm font-bold text-slate-400 uppercase tracking-tighter">VNĐ</span>
       </div>
     </CardContent>
   </Card>
@@ -107,27 +108,27 @@ export default function AnalysisPage() {
   }
 
   return (
-    <div className="p-8 space-y-10 max-w-7xl mx-auto">
+    <div className="p-4 md:p-8 space-y-6 md:space-y-10 max-w-7xl mx-auto">
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6">
         <div>
-          <h1 className="text-5xl font-black text-slate-900 tracking-tighter uppercase leading-none">Phân tích</h1>
-          <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-4 flex items-center gap-2">
-            <TrendingUp size={14} className="text-primary" /> Báo cáo hiệu suất kinh doanh đa kỳ
+          <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter uppercase leading-none">Phân tích</h1>
+          <p className="text-slate-400 font-bold uppercase tracking-widest text-[9px] md:text-[10px] mt-3 md:mt-4 flex items-center gap-2">
+            <TrendingUp size={12} className="text-primary md:size-auto" /> Báo cáo hiệu suất kinh doanh đa kỳ
           </p>
         </div>
         <Button
           variant="outline"
-          className="h-14 rounded-[28px] px-8 font-black gap-3 border-slate-100 shadow-sm hover:bg-slate-50 transition-all active:scale-95"
+          className="h-12 md:h-14 rounded-[20px] md:rounded-[28px] px-6 md:px-8 font-black gap-2 md:gap-3 border-slate-100 shadow-sm hover:bg-slate-50 transition-all active:scale-95 text-xs md:text-sm"
           onClick={fetchAnalysis}
         >
-          <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+          <RefreshCw size={16} className={cn("md:size-auto", loading && "animate-spin")} />
           LÀM MỚI DỮ LIỆU
         </Button>
       </div>
 
       {/* Quick Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
         <MetricCard
           title="Doanh thu hôm nay"
           metric={data?.metrics.today}

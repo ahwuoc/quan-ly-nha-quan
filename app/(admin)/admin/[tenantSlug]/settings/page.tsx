@@ -83,32 +83,32 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-8 pb-20">
+    <div className="p-3 md:p-4 lg:p-8 max-w-4xl mx-auto space-y-4 md:space-y-8 pb-24 md:pb-20">
       <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 p-2 rounded-xl">
-            <Lock className="size-6 text-primary" />
+        <div className="flex items-center gap-2 md:gap-3">
+          <div className="bg-primary/10 p-1.5 md:p-2 rounded-lg md:rounded-xl">
+            <Lock className="size-5 md:size-6 text-primary" />
           </div>
-          <h1 className="text-3xl font-black tracking-tight uppercase">Cài đặt bảo mật</h1>
+          <h1 className="text-xl md:text-3xl font-black tracking-tight uppercase">Cài đặt bảo mật</h1>
         </div>
-        <p className="text-muted-foreground text-sm font-medium">Thiết lập giới hạn truy cập cho @{tenantSlug}</p>
+        <p className="text-xs md:text-sm text-muted-foreground font-medium">Thiết lập giới hạn truy cập cho @{tenantSlug}</p>
       </div>
 
-      <Card className="border-none shadow-2xl shadow-black/5 rounded-[40px] overflow-hidden">
-        <CardHeader className="bg-muted/30 p-8 pb-6">
-          <div className="flex items-center justify-between">
+      <Card className="border-none shadow-xl md:shadow-2xl shadow-black/5 rounded-[24px] md:rounded-[40px] overflow-hidden">
+        <CardHeader className="bg-muted/30 p-4 md:p-8 pb-4 md:pb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 md:gap-4">
             <div className="space-y-1">
-              <CardTitle className="text-xl font-black uppercase tracking-tight">Giới hạn IP mạng LAN / Wi-Fi</CardTitle>
-              <CardDescription>Ngăn chặn khách đặt món nếu họ không ở trong cửa hàng.</CardDescription>
+              <CardTitle className="text-base md:text-xl font-black uppercase tracking-tight">Giới hạn IP mạng LAN / Wi-Fi</CardTitle>
+              <CardDescription className="text-xs md:text-sm">Ngăn chặn khách đặt món nếu họ không ở trong cửa hàng.</CardDescription>
             </div>
             <Switch
               checked={data.ip_restriction_enabled}
               onCheckedChange={(checked) => setData({ ...data, ip_restriction_enabled: checked })}
-              className="scale-125 data-[state=checked]:bg-emerald-500"
+              className="scale-110 md:scale-125 data-[state=checked]:bg-emerald-500"
             />
           </div>
         </CardHeader>
-        <CardContent className="p-8 space-y-8">
+        <CardContent className="p-4 md:p-8 space-y-6 md:space-y-8">
           {data.ip_restriction_enabled && (
              <Alert className="bg-emerald-50/50 border-emerald-100 text-emerald-800 rounded-3xl p-6">
               <Shield className="size-5 text-emerald-600" />
@@ -199,17 +199,17 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
       
-      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-4xl px-4 md:px-8 pointer-events-none">
+      <div className="fixed bottom-4 md:bottom-8 left-1/2 -translate-x-1/2 w-full max-w-4xl px-3 md:px-4 lg:px-8 pointer-events-none">
         <Button 
-          className="w-full h-16 rounded-[28px] bg-primary hover:bg-primary/90 text-white font-black shadow-2xl shadow-primary/30 text-lg tracking-tight pointer-events-auto transition-transform active:scale-95"
+          className="w-full h-14 md:h-16 rounded-[20px] md:rounded-[28px] bg-primary hover:bg-primary/90 text-white font-black shadow-2xl shadow-primary/30 text-sm md:text-lg tracking-tight pointer-events-auto transition-transform active:scale-95"
           onClick={handleSave}
           disabled={saving}
         >
           {saving ? (
-             <div className="size-6 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+             <div className="size-5 md:size-6 border-4 border-white/30 border-t-white rounded-full animate-spin" />
           ) : (
             <>
-              <Save className="size-6 mr-3" /> LƯU THAY ĐỔI CẤU HÌNH
+              <Save className="size-5 md:size-6 mr-2 md:mr-3" /> LƯU THAY ĐỔI CẤU HÌNH
             </>
           )}
         </Button>

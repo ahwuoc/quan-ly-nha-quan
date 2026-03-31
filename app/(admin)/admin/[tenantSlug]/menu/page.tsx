@@ -160,15 +160,15 @@ export default function MenuPage() {
     .filter((i) => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4 md:space-y-8 animate-in fade-in duration-500">
       {/* Header section */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 md:gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-primary">
-            <UtensilsCrossed className="size-5" />
-            <h1 className="text-2xl font-bold tracking-tight">Quản lý thực đơn</h1>
+            <UtensilsCrossed className="size-4 md:size-5" />
+            <h1 className="text-lg md:text-2xl font-bold tracking-tight">Quản lý thực đơn</h1>
           </div>
-          <p className="text-muted-foreground">
+          <p className="text-xs md:text-sm text-muted-foreground">
             Chỉnh sửa món ăn, giá cả và trạng thái hiển thị trên thực đơn điện tử.
           </p>
         </div>
@@ -178,36 +178,37 @@ export default function MenuPage() {
             size="icon"
             onClick={fetchItems}
             disabled={loading}
-            className="rounded-full bg-white shadow-sm"
+            className="rounded-full bg-white shadow-sm size-9 md:size-10"
           >
-            <RefreshCw className={cn("size-4 text-slate-500", loading && "animate-spin")} />
+            <RefreshCw className={cn("size-3 md:size-4 text-slate-500", loading && "animate-spin")} />
           </Button>
-          <Button onClick={() => setModal({ open: true })} className="rounded-2xl h-11 px-6 shadow-lg shadow-primary/25 font-bold">
-            <Plus className="size-4 mr-2" />
-            Thêm món mới
+          <Button onClick={() => setModal({ open: true })} className="rounded-xl md:rounded-2xl h-9 md:h-11 px-4 md:px-6 shadow-lg shadow-primary/25 font-bold text-xs md:text-sm">
+            <Plus className="size-3 md:size-4 mr-1.5 md:mr-2" />
+            <span className="hidden sm:inline">Thêm món mới</span>
+            <span className="sm:hidden">Thêm</span>
           </Button>
         </div>
       </div>
 
       {/* Filters and search */}
-      <div className="bg-white p-6 rounded-[2.5rem] border-primary/5 shadow-sm space-y-6">
-        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+      <div className="bg-white p-4 md:p-6 rounded-[1.5rem] md:rounded-[2.5rem] border-primary/5 shadow-sm space-y-4 md:space-y-6">
+        <div className="flex flex-col sm:flex-row gap-3 md:gap-4 items-center justify-between">
           <div className="relative w-full sm:w-96">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-slate-300" />
+            <Search className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 size-3 md:size-4 text-slate-300" />
             <Input
               placeholder="Tìm món ngon của bạn..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-11 h-12 bg-slate-50 border-none shadow-none rounded-2xl font-medium"
+              className="pl-9 md:pl-11 h-10 md:h-12 bg-slate-50 border-none shadow-none rounded-xl md:rounded-2xl font-medium text-sm"
             />
           </div>
-          <div className="flex gap-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-            <div className="flex items-center gap-2">
-              <div className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+          <div className="flex gap-4 md:gap-6 text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+            <div className="flex items-center gap-1.5 md:gap-2">
+              <div className="size-1.5 md:size-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>{items.filter(i => i.available).length} Đang bán</span>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="size-2 rounded-full bg-orange-500" />
+            <div className="flex items-center gap-1.5 md:gap-2">
+              <div className="size-1.5 md:size-2 rounded-full bg-orange-500" />
               <span>{items.filter(i => !i.available).length} Tạm ngưng</span>
             </div>
           </div>
@@ -215,12 +216,12 @@ export default function MenuPage() {
 
         <Separator className="bg-slate-100" />
 
-        <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+        <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar scrollbar-hide">
           <Button
             variant={filterCat === "all" ? "default" : "secondary"}
             size="sm"
             onClick={() => setFilterCat("all")}
-            className="rounded-xl h-10 px-5 font-bold transition-all"
+            className="rounded-xl h-9 md:h-10 px-4 md:px-5 font-bold transition-all text-xs whitespace-nowrap flex-shrink-0"
           >
             ⚡ Tất cả món
           </Button>
@@ -230,7 +231,7 @@ export default function MenuPage() {
               variant={filterCat === cat.id ? "default" : "secondary"}
               size="sm"
               onClick={() => setFilterCat(cat.id)}
-              className="rounded-xl h-10 px-5 font-bold whitespace-nowrap"
+              className="rounded-xl h-9 md:h-10 px-4 md:px-5 font-bold whitespace-nowrap text-xs flex-shrink-0"
             >
               {cat.name}
             </Button>
@@ -240,16 +241,16 @@ export default function MenuPage() {
 
       {/* Menu grid */}
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
           {[1, 2, 3].map(i => (
-            <div key={i} className="h-80 rounded-[2.5rem] bg-muted/40 animate-pulse" />
+            <div key={i} className="h-80 rounded-[1.5rem] md:rounded-[2.5rem] bg-muted/40 animate-pulse" />
           ))}
         </div>
       ) : filtered.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
           {filtered.map((item) => (
             <Card key={item.id} className={cn(
-              "group relative overflow-hidden rounded-[2.5rem] transition-all duration-500 hover:shadow-2xl border-primary/5 bg-white",
+              "group relative overflow-hidden rounded-[1.5rem] md:rounded-[2.5rem] transition-all duration-500 hover:shadow-2xl border-primary/5 bg-white",
               !item.available && "opacity-75 grayscale-[0.8]"
             )}>
               <div className="aspect-[4/3] bg-slate-50 relative flex items-center justify-center overflow-hidden">
@@ -269,42 +270,42 @@ export default function MenuPage() {
                 )}
                 {!item.available && (
                   <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center">
-                    <Badge variant="secondary" className="px-5 py-2 rounded-full font-black text-[10px] uppercase tracking-widest bg-white text-slate-900">Hết món</Badge>
+                    <Badge variant="secondary" className="px-3 md:px-5 py-1.5 md:py-2 rounded-full font-black text-[9px] md:text-[10px] uppercase tracking-widest bg-white text-slate-900">Hết món</Badge>
                   </div>
                 )}
               </div>
-              <CardContent className="p-6 space-y-6">
+              <CardContent className="p-4 md:p-6 space-y-4 md:space-y-6">
                 <div className="space-y-1.5 px-1">
-                  <div className="flex items-center justify-between gap-4">
-                    <CardTitle className="text-xl font-black text-slate-800 truncate">{item.name}</CardTitle>
-                    <span className="text-lg font-black text-primary whitespace-nowrap">
+                  <div className="flex items-center justify-between gap-3 md:gap-4">
+                    <CardTitle className="text-base md:text-xl font-black text-slate-800 truncate">{item.name}</CardTitle>
+                    <span className="text-sm md:text-lg font-black text-primary whitespace-nowrap">
                       {(item.price || 0).toLocaleString("vi-VN")}đ
                     </span>
                   </div>
-                  <p className="text-sm font-medium text-slate-400 line-clamp-1 h-5">{item.description || "Hương vị tuyệt hảo từ bếp trưởng..."}</p>
+                  <p className="text-xs md:text-sm font-medium text-slate-400 line-clamp-1 h-4 md:h-5">{item.description || "Hương vị tuyệt hảo từ bếp trưởng..."}</p>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <Badge variant="outline" className="rounded-xl px-3 py-1 bg-slate-50 border-none text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                  <Badge variant="outline" className="rounded-xl px-2 md:px-3 py-0.5 md:py-1 bg-slate-50 border-none text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest">
                     {categories.find(c => c.id === (item.category || item.categoryId))?.name || "Khác"}
                   </Badge>
                   
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5 md:gap-2">
                      <Button
                       variant="secondary"
                       size="icon"
-                      className="size-10 rounded-xl bg-slate-50 border-none text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors"
+                      className="size-8 md:size-10 rounded-xl bg-slate-50 border-none text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors"
                       onClick={() => setModal({ open: true, item })}
                     >
-                      <Pencil className="size-4" />
+                      <Pencil className="size-3 md:size-4" />
                     </Button>
                     <Button
                       variant="secondary"
                       size="icon"
-                      className="size-10 rounded-xl bg-slate-50 border-none text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      className="size-8 md:size-10 rounded-xl bg-slate-50 border-none text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                       onClick={() => setDeleteTarget(item)}
                     >
-                      <Trash2 className="size-4" />
+                      <Trash2 className="size-3 md:size-4" />
                     </Button>
                   </div>
                 </div>
@@ -313,7 +314,7 @@ export default function MenuPage() {
                   variant={item.available ? "outline" : "default"}
                   size="sm"
                   className={cn(
-                    "w-full h-12 rounded-2xl font-bold transition-all border-2",
+                    "w-full h-10 md:h-12 rounded-xl md:rounded-2xl font-bold transition-all border-2 text-xs md:text-sm",
                     item.available 
                       ? "border-slate-100 text-slate-600 hover:border-primary/20 hover:text-primary" 
                       : "bg-slate-900 text-white"

@@ -163,78 +163,80 @@ function TenantsContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f9fb] flex flex-col items-center px-4 py-8 md:py-16">
+    <div className="min-h-screen bg-[#f8f9fb] flex flex-col items-center px-3 md:px-4 py-6 md:py-8 lg:py-16">
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[-10%] right-[-5%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[100px]" />
         <div className="absolute bottom-[-10%] left-[-5%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[100px]" />
       </div>
 
-      <div className="max-w-4xl w-full space-y-10 z-10">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-primary font-bold tracking-tight uppercase">
-              <LayoutDashboard className="size-5" />
+      <div className="max-w-4xl w-full space-y-6 md:space-y-10 z-10">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 md:gap-6 border-b border-slate-200 pb-6 md:pb-8">
+          <div className="space-y-1.5 md:space-y-2">
+            <div className="flex items-center gap-2 text-primary font-bold tracking-tight uppercase text-xs md:text-sm">
+              <LayoutDashboard className="size-4 md:size-5" />
               <span>Hệ thống quản lý</span>
             </div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight">Chào mừng trở lại!</h1>
-            <p className="text-slate-500 font-medium">Bạn có {tenants.length} nhà hàng đang hoạt động.</p>
+            <h1 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight">Chào mừng trở lại!</h1>
+            <p className="text-xs md:text-sm text-slate-500 font-medium">Bạn có {tenants.length} nhà hàng đang hoạt động.</p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={() => router.push("/tenants/create")} className="h-12 px-6 rounded-2xl shadow-lg shadow-primary/20 font-bold">
-              <Plus className="mr-2 size-4" /> Đăng ký nhà hàng mới
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
+            <Button onClick={() => router.push("/tenants/create")} className="h-10 md:h-12 px-4 md:px-6 rounded-xl md:rounded-2xl shadow-lg shadow-primary/20 font-bold text-xs md:text-sm">
+              <Plus className="mr-1.5 md:mr-2 size-3 md:size-4" /> 
+              <span className="hidden sm:inline">Đăng ký nhà hàng mới</span>
+              <span className="sm:hidden">Đăng ký mới</span>
             </Button>
-            <Button variant="ghost" className="h-12 rounded-2xl px-4 text-slate-500 hover:text-red-500 font-bold" onClick={() => router.push("/auth/logout")}>
-              <LogOut className="mr-1 size-4" /> Thoát
+            <Button variant="ghost" className="h-10 md:h-12 rounded-xl md:rounded-2xl px-3 md:px-4 text-slate-500 hover:text-red-500 font-bold text-xs md:text-sm" onClick={() => router.push("/auth/logout")}>
+              <LogOut className="mr-1 size-3 md:size-4" /> Thoát
             </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           {tenants.map((tenant) => (
             <div key={tenant.id} className="group relative">
-              <Card className="relative h-full bg-white border-slate-100 hover:border-primary/20 rounded-[2.5rem] shadow-sm hover:shadow-2xl transition-all duration-500 overflow-hidden">
-                <CardContent className="p-8">
+              <Card className="relative h-full bg-white border-slate-100 hover:border-primary/20 rounded-[1.5rem] md:rounded-[2.5rem] shadow-sm hover:shadow-2xl transition-all duration-500 overflow-hidden">
+                <CardContent className="p-5 md:p-8">
                   <div className="flex items-start justify-between">
-                    <div onClick={() => selectTenant(tenant.slug)} className="size-14 bg-slate-50 group-hover:bg-primary/5 rounded-2xl flex items-center justify-center transition-colors cursor-pointer">
-                      <Store className="size-6 text-slate-400 group-hover:text-primary transition-colors" />
+                    <div onClick={() => selectTenant(tenant.slug)} className="size-12 md:size-14 bg-slate-50 group-hover:bg-primary/5 rounded-xl md:rounded-2xl flex items-center justify-center transition-colors cursor-pointer">
+                      <Store className="size-5 md:size-6 text-slate-400 group-hover:text-primary transition-colors" />
                     </div>
 
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="size-10 p-0 rounded-full text-slate-300 hover:text-red-500 transition-colors">
-                          <Trash2 className="size-4" />
+                        <Button variant="ghost" size="sm" className="size-8 md:size-10 p-0 rounded-full text-slate-300 hover:text-red-500 transition-colors">
+                          <Trash2 className="size-3 md:size-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56 rounded-2xl p-2 shadow-2xl border-slate-100">
-                        <DropdownMenuLabel className="text-xs font-bold text-slate-400 uppercase tracking-widest p-3">Quản lý nhà hàng</DropdownMenuLabel>
+                      <DropdownMenuContent align="end" className="w-48 md:w-56 rounded-xl md:rounded-2xl p-2 shadow-2xl border-slate-100">
+                        <DropdownMenuLabel className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest p-2 md:p-3">Quản lý nhà hàng</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => setDeleteConfig({ id: tenant.id, name: tenant.name, hard: false })} className="rounded-xl p-3 focus:bg-red-50 focus:text-red-600 cursor-pointer">
-                          <AlertTriangle className="mr-2 size-4" /> Xóa tạm thời (Soft)
+                        <DropdownMenuItem onClick={() => setDeleteConfig({ id: tenant.id, name: tenant.name, hard: false })} className="rounded-lg md:rounded-xl p-2 md:p-3 focus:bg-red-50 focus:text-red-600 cursor-pointer text-xs md:text-sm">
+                          <AlertTriangle className="mr-2 size-3 md:size-4" /> Xóa tạm thời (Soft)
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setDeleteConfig({ id: tenant.id, name: tenant.name, hard: true })} className="rounded-xl p-3 focus:bg-red-600 focus:text-white cursor-pointer group">
-                          <ShieldAlert className="mr-2 size-4" /> Xóa vĩnh viễn (Hard)
+                        <DropdownMenuItem onClick={() => setDeleteConfig({ id: tenant.id, name: tenant.name, hard: true })} className="rounded-lg md:rounded-xl p-2 md:p-3 focus:bg-red-600 focus:text-white cursor-pointer group text-xs md:text-sm">
+                          <ShieldAlert className="mr-2 size-3 md:size-4" /> Xóa vĩnh viễn (Hard)
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
 
-                  <div className="mt-8 cursor-pointer" onClick={() => selectTenant(tenant.slug)}>
-                    <h3 className="text-2xl font-black text-slate-900 group-hover:text-primary transition-colors line-clamp-1">{tenant.name}</h3>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">ID: {tenant.slug}</p>
+                  <div className="mt-6 md:mt-8 cursor-pointer" onClick={() => selectTenant(tenant.slug)}>
+                    <h3 className="text-xl md:text-2xl font-black text-slate-900 group-hover:text-primary transition-colors line-clamp-1">{tenant.name}</h3>
+                    <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">ID: {tenant.slug}</p>
                   </div>
 
-                  <div className="mt-10 pt-6 border-t border-slate-50 flex items-center justify-between">
-                    <div className="flex items-center gap-1 text-xs font-bold text-primary">
-                      Vào quản lý <ChevronRight className="size-3 transition-transform group-hover:translate-x-1" />
+                  <div className="mt-6 md:mt-10 pt-4 md:pt-6 border-t border-slate-50 flex items-center justify-between">
+                    <div className="flex items-center gap-1 text-[10px] md:text-xs font-bold text-primary">
+                      Vào quản lý <ChevronRight className="size-2.5 md:size-3 transition-transform group-hover:translate-x-1" />
                     </div>
                     {(() => {
                       const sub = subscriptions.find((s: any) => s.tenant_id === tenant.id);
                       if (!sub?.expires_at) return null;
                       const days = Math.ceil((new Date(sub.expires_at).getTime() - Date.now()) / 86400000);
-                      if (days <= 0) return <span className="text-[10px] font-black text-red-500 uppercase">Hết hạn</span>;
-                      if (days <= 7) return <span className="text-[10px] font-black text-amber-500">⚠ còn {days} ngày</span>;
-                      return <span className="text-[10px] font-bold text-slate-400">còn {days} ngày</span>;
+                      if (days <= 0) return <span className="text-[9px] md:text-[10px] font-black text-red-500 uppercase">Hết hạn</span>;
+                      if (days <= 7) return <span className="text-[9px] md:text-[10px] font-black text-amber-500">⚠ còn {days} ngày</span>;
+                      return <span className="text-[9px] md:text-[10px] font-bold text-slate-400">còn {days} ngày</span>;
                     })()}
                   </div>
                 </CardContent>
@@ -245,35 +247,35 @@ function TenantsContent() {
 
         {/* Archived Tenants Section */}
         {archivedTenants.length > 0 && (
-          <div className="space-y-4 pt-4 border-t border-slate-100">
+          <div className="space-y-3 md:space-y-4 pt-3 md:pt-4 border-t border-slate-100">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="size-5 text-amber-500" />
-              <h2 className="text-xl font-black text-slate-700">Nhà hàng đã tạm dừng ({archivedTenants.length})</h2>
+              <AlertTriangle className="size-4 md:size-5 text-amber-500" />
+              <h2 className="text-lg md:text-xl font-black text-slate-700">Nhà hàng đã tạm dừng ({archivedTenants.length})</h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
               {archivedTenants.map((tenant) => (
-                <Card key={tenant.id} className="relative bg-slate-50 border-slate-200 rounded-2xl opacity-75">
-                  <CardContent className="p-6">
+                <Card key={tenant.id} className="relative bg-slate-50 border-slate-200 rounded-xl md:rounded-2xl opacity-75">
+                  <CardContent className="p-4 md:p-6">
                     <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="size-12 bg-slate-200 rounded-xl flex items-center justify-center">
-                          <Store className="size-5 text-slate-400" />
+                      <div className="flex items-center gap-2 md:gap-3">
+                        <div className="size-10 md:size-12 bg-slate-200 rounded-lg md:rounded-xl flex items-center justify-center">
+                          <Store className="size-4 md:size-5 text-slate-400" />
                         </div>
                         <div>
-                          <h3 className="font-bold text-slate-700">{tenant.name}</h3>
-                          <p className="text-xs text-slate-400 font-mono">{tenant.slug}</p>
+                          <h3 className="font-bold text-sm md:text-base text-slate-700">{tenant.name}</h3>
+                          <p className="text-[10px] md:text-xs text-slate-400 font-mono">{tenant.slug}</p>
                         </div>
                       </div>
-                      <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200">
+                      <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 text-[9px] md:text-[10px]">
                         Đã tạm dừng
                       </Badge>
                     </div>
-                    <div className="mt-4 flex gap-2">
+                    <div className="mt-3 md:mt-4 flex gap-2">
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => restoreTenant(tenant.id)}
-                        className="flex-1 rounded-xl border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+                        className="flex-1 rounded-lg md:rounded-xl border-emerald-200 text-emerald-600 hover:bg-emerald-50 h-9 md:h-10 text-xs"
                       >
                         Khôi phục
                       </Button>
@@ -281,9 +283,9 @@ function TenantsContent() {
                         size="sm"
                         variant="outline"
                         onClick={() => setDeleteConfig({ id: tenant.id, name: tenant.name, hard: true })}
-                        className="rounded-xl border-red-200 text-red-600 hover:bg-red-50"
+                        className="rounded-lg md:rounded-xl border-red-200 text-red-600 hover:bg-red-50 size-9 md:size-10"
                       >
-                        <Trash2 className="size-4" />
+                        <Trash2 className="size-3 md:size-4" />
                       </Button>
                     </div>
                   </CardContent>
@@ -293,23 +295,23 @@ function TenantsContent() {
           </div>
         )}
 
-        <footer className="text-center pt-8">
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+        <footer className="text-center pt-6 md:pt-8">
+          <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest">
             © 2026 Quản Lý Nhà Quán • Version 2.0 Premium
           </p>
         </footer>
 
         {/* Plans section */}
         {plans.length > 0 && (
-          <div className="space-y-6 pt-4 border-t border-slate-100">
+          <div className="space-y-4 md:space-y-6 pt-3 md:pt-4 border-t border-slate-100">
             <div className="text-center space-y-1">
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Gói dịch vụ</h2>
-              <p className="text-slate-500 text-sm">Nâng cấp để mở khóa thêm tính năng cho nhà hàng của bạn.</p>
+              <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">Gói dịch vụ</h2>
+              <p className="text-slate-500 text-xs md:text-sm">Nâng cấp để mở khóa thêm tính năng cho nhà hàng của bạn.</p>
             </div>
 
             {/* Current plan badge */}
             {subscriptions.length > 0 && (
-              <div className="flex flex-wrap gap-3 justify-center">
+              <div className="flex flex-wrap gap-2 md:gap-3 justify-center">
                 {subscriptions.map((sub: any) => {
                   const tenant = tenants.find(t => t.id === sub.tenant_id);
                   if (!tenant) return null;
@@ -347,57 +349,57 @@ function TenantsContent() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
               {plans.map((plan: any) => {
                 const isCurrent = subscriptions.some((s: any) => s.plan_id === plan.id);
                 const isFree = plan.price_monthly === 0;
                 return (
                   <div key={plan.id} className={cn(
-                    "relative rounded-[2rem] border p-6 space-y-4 transition-all",
+                    "relative rounded-[1.5rem] md:rounded-[2rem] border p-4 md:p-6 space-y-3 md:space-y-4 transition-all",
                     isCurrent ? "border-primary bg-primary/5 shadow-xl shadow-primary/10" : "border-slate-100 bg-white shadow-sm hover:shadow-md"
                   )}>
                     {isCurrent && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                        <Badge className="bg-primary text-white border-none rounded-full font-black text-[9px] uppercase px-3 shadow-lg">
+                      <div className="absolute -top-2 md:-top-3 left-1/2 -translate-x-1/2">
+                        <Badge className="bg-primary text-white border-none rounded-full font-black text-[8px] md:text-[9px] uppercase px-2 md:px-3 shadow-lg">
                           Đang dùng
                         </Badge>
                       </div>
                     )}
                     <div>
-                      <p className="font-black text-slate-900 text-lg">{plan.name}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">{plan.description}</p>
+                      <p className="font-black text-slate-900 text-base md:text-lg">{plan.name}</p>
+                      <p className="text-[10px] md:text-xs text-slate-400 mt-0.5">{plan.description}</p>
                     </div>
                     <div>
                       {isFree ? (
-                        <p className="text-3xl font-black text-slate-900">Miễn phí</p>
+                        <p className="text-2xl md:text-3xl font-black text-slate-900">Miễn phí</p>
                       ) : (
-                        <p className="text-3xl font-black text-slate-900">
+                        <p className="text-2xl md:text-3xl font-black text-slate-900">
                           {plan.price_monthly.toLocaleString("vi-VN")}
-                          <span className="text-sm font-bold text-slate-400">đ/tháng</span>
+                          <span className="text-xs md:text-sm font-bold text-slate-400">đ/tháng</span>
                         </p>
                       )}
                     </div>
-                    <div className="space-y-2 text-sm">
+                    <div className="space-y-1.5 md:space-y-2 text-xs md:text-sm">
                       {[
                         { label: `${plan.max_tables === 999 ? "Không giới hạn" : plan.max_tables} bàn` },
                         { label: `${plan.max_members === 999 ? "Không giới hạn" : plan.max_members} thành viên` },
                         { label: plan.duration_days === 0 ? "Không giới hạn thời gian" : `${plan.duration_days} ngày` },
                       ].map((f, i) => (
-                        <div key={i} className="flex items-center gap-2 text-slate-600">
-                          <Check className="size-3.5 text-emerald-500 shrink-0" />
+                        <div key={i} className="flex items-center gap-1.5 md:gap-2 text-slate-600">
+                          <Check className="size-3 md:size-3.5 text-emerald-500 shrink-0" />
                           <span className="font-medium">{f.label}</span>
                         </div>
                       ))}
                     </div>
                     <Button
-                      className={cn("w-full rounded-2xl font-black text-xs uppercase tracking-widest h-11",
+                      className={cn("w-full rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-widest h-10 md:h-11",
                         isCurrent ? "bg-primary/10 text-primary hover:bg-primary/20" : ""
                       )}
                       variant={isCurrent ? "ghost" : "default"}
                       disabled={isCurrent || isFree}
                       onClick={() => window.open("mailto:delb1k98@gmail.com?subject=Nâng cấp gói " + plan.name, "_blank")}
                     >
-                      {isCurrent ? "Đang sử dụng" : isFree ? "Mặc định" : <><Zap className="size-3.5 mr-1" /> Liên hệ nâng cấp</>}
+                      {isCurrent ? "Đang sử dụng" : isFree ? "Mặc định" : <><Zap className="size-3 md:size-3.5 mr-1" /> Liên hệ nâng cấp</>}
                     </Button>
                   </div>
                 );
