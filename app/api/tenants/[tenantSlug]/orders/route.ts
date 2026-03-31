@@ -1,16 +1,17 @@
-import { createServerClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
-async function getTenantIdBySlug(slug: string): Promise<string | null> {
-  const supabase = await createServerClient();
-  const { data, error } = await supabase
-    .from("tenants")
-    .select("id")
-    .eq("slug", slug)
-    .single();
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) throw new Error("Missing Supabase configuration");
+  return createClient(url, key);
+}
 
-  if (error || !data) return null;
-  return data.id;
+async function getTenantIdBySlug(supabase: any, slug: string): Promise<string | null> {
+  const { data, error } = await supabase.from("tenants").select("id").eq("slug", slug).maybeSingle();
+  if (error) console.error(`[ORDER_API_TRACE] Lỗi tìm Tenant: ${error.message}`);
+  return data?.id || null;
 }
 
 export async function POST(
@@ -23,78 +24,75 @@ export async function POST(
     const cookieStore = await cookies();
     const tableSessionId = cookieStore.get("table_session_id")?.value;
 
-    const supabase = await createServerClient();
+    const supabase = getSupabaseClient();
+    console.log(`[ORDER_API_TRACE] Bắt đầu xử lý: Tenant=${tenantSlug}, Session=${tableSessionId}`);
 
-    const tenantId = await getTenantIdBySlug(tenantSlug);
+    // 1. Tìm Tenant
+    const tenantId = await getTenantIdBySlug(supabase, tenantSlug);
     if (!tenantId) {
-      return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+      console.error(`[ORDER_API_TRACE] 404: Không tìm thấy quán với slug: ${tenantSlug}`);
+      return NextResponse.json({ error: `Tenant not found: ${tenantSlug}` }, { status: 404 });
     }
+    console.log(`[ORDER_API_TRACE] Đã tìm thấy quán ID: ${tenantId}`);
 
     const body = await request.json();
     const { table_id, items } = body;
+    console.log(`[ORDER_API_TRACE] Đang kiểm tra bàn: ${table_id}`);
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: "No items provided" }, { status: 400 });
-    }
-
-    // 0. Verify Table Session
+    // 2. Tìm Bàn
     const { data: table, error: tableError } = await supabase
       .from("tables")
-      .select("session_id, session_expires_at")
+      .select("session_id, status")
       .eq("id", table_id)
-      .single();
+      .maybeSingle();
 
-    if (tableError || !table) {
-      return NextResponse.json({ error: "Table not found" }, { status: 404 });
+    if (tableError) {
+      console.error(`[ORDER_API_TRACE] 500: Lỗi DB khi tìm bàn ${table_id}: ${tableError.message}`);
+      return NextResponse.json({ error: "Database error during table check" }, { status: 500 });
     }
 
-    // Check if session matches
-    if (!table.session_id || table.session_id !== tableSessionId) {
-       return NextResponse.json({ 
-         error: "Session invalid or table occupied by another device. Please scan QR again." 
-       }, { status: 403 });
+    if (!table) {
+      console.error(`[ORDER_API_TRACE] 404: Bàn ${table_id} không tồn tại hoặc bị chặn bởi RLS.`);
+      return NextResponse.json({ error: `Table ${table_id} not found` }, { status: 404 });
+    }
+    console.log(`[ORDER_API_TRACE] Đã tìm thấy bàn. Session trong DB: ${table.session_id}`);
+
+    if (table.session_id !== tableSessionId) {
+      console.warn(`[ORDER_API_TRACE] 403: Sai Session. Của bạn=${tableSessionId}, Của bàn=${table.session_id}`);
+      return NextResponse.json({ error: "Session mismatch. Please refresh." }, { status: 403 });
     }
 
-    // 1. Create the order
+    console.log(`[ORDER_API_TRACE] Đang tạo Order...`);
     const { data: order, error: orderError } = await supabase
       .from("orders")
       .insert({
         table_id,
         tenant_id: tenantId,
-        status: "pending"
+        status: "pending",
+        session_id: tableSessionId
       })
       .select()
-      .single();
-
-    if (orderError) throw orderError;
-
-    // Update status to occupied (already done usually but for good measure)
-    await supabase
-      .from("tables")
-      .update({ status: "occupied" })
-      .eq("id", table_id);
-
-    // 2. Create the order items
-    const orderItems = items.map((item: any) => ({
-      order_id: order.id,
-      menu_item_id: item.menu_item_id,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      tenant_id: tenantId
-    }));
-
-    const { error: itemsError } = await supabase
-      .from("order_items")
-      .insert(orderItems);
-
-    if (itemsError) throw itemsError;
-
-    return NextResponse.json({ success: true, orderId: order.id }, { status: 201 });
-  } catch (error) {
-    console.error("Order POST error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal Server Error" },
-      { status: 500 }
+      .maybeSingle();
+    if (orderError) throw new Error(`Lỗi tạo đơn: ${orderError.message}`);
+    console.log(`[ORDER_API_TRACE] Đang tạo OrderItems (${items.length} món)...`);
+    const { error: itemsError } = await supabase.from("order_items").insert(
+      items.map((i: any) => ({
+        order_id: order.id,
+        menu_item_id: i.menu_item_id,
+        quantity: i.quantity,
+        unit_price: i.unit_price,
+        tenant_id: tenantId
+      }))
     );
+    if (itemsError) throw new Error(`Lỗi tạo món ăn: ${itemsError.message}`);
+
+    // 6. Cập nhật bàn
+    await supabase.from("tables").update({ status: "occupied" }).eq("id", table_id);
+
+    console.log(`[ORDER_API_TRACE] HOÀN TẤT ĐẶT MÓN! ID=${order.id}`);
+    return NextResponse.json({ success: true, orderId: order.id }, { status: 201 });
+  } catch (err: any) {
+    console.error(`[ORDER_API_TRACE] 500 Lỗi nghiêm trọng: ${err.message}`);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

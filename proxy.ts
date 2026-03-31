@@ -4,15 +4,20 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import crypto from "crypto";
 
-/**
- * MAIN PROXY / MIDDLEWARE
- * Orchestrates Supabase session updates, IP restricts, and Table scanning locks.
- */
+
 export async function proxy(request: NextRequest) {
-  // 1. Supabase Session Sync (Refreshes tokens, Syncs cookies)
+  const { pathname, searchParams } = request.nextUrl;
+  if (pathname === "/" || pathname === "/tenants") {
+    const lastTenant = request.cookies.get("last_tenant_slug")?.value;
+    const isBack = searchParams.get("back") === "true";
+
+    if (lastTenant && !isBack) {
+      console.log(`[Speedy Redirect] Auto-routing to last restaurant: ${lastTenant}`);
+      return NextResponse.redirect(new URL(`/admin/${lastTenant}/menu`, request.url));
+    }
+  }
   let response = await updateSession(request);
 
-  const { pathname } = request.nextUrl;
   const tablePageRegex = /^\/([^/]+)\/table\/([^/]+)$/;
   const match = pathname.match(tablePageRegex);
 

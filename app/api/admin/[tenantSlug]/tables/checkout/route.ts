@@ -14,15 +14,19 @@ export async function POST(
     const supabase = await createServerClient();
     const { error: ordersError } = await supabase
       .from("orders")
-      .update({ status: "completed" })
+      .update({ status: "paid" })
       .eq("table_id", tableId)
-      .in("status", ["pending", "preparing"]);
+      .in("status", ["pending", "preparing", "completed"]);
 
     if (ordersError) throw ordersError;
 
     const { error: tableError } = await supabase
       .from("tables")
-      .update({ status: "available" })
+      .update({ 
+        status: "available",
+        session_id: null,
+        session_expires_at: null
+      })
       .eq("id", tableId);
 
     if (tableError) throw tableError;

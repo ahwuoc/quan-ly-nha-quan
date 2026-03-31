@@ -43,6 +43,8 @@ interface Props {
   item?: Table;
   onSave: (table: Table) => void;
   onClose: () => void;
+  tenantSlug: string;
+  saving?: boolean;
 }
 
 function generateQRCode(slug: string, tableId: string): string {
@@ -51,10 +53,7 @@ function generateQRCode(slug: string, tableId: string): string {
   return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(tableUrl)}`;
 }
 
-export default function TableModal({ item, onSave, onClose }: Props) {
-  const params = useParams();
-  const tenantSlug = params.tenantSlug as string;
-
+export default function TableModal({ item, onSave, onClose, tenantSlug, saving }: Props) {
   const tableId = item?.id ?? `temp-${Date.now()}`;
   const [form, setForm] = useState({
     number: item?.number ?? 1,
@@ -65,7 +64,7 @@ export default function TableModal({ item, onSave, onClose }: Props) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.number) return;
+    if (!form.number || saving) return;
     onSave({
       ...form,
       id: tableId,
@@ -73,208 +72,189 @@ export default function TableModal({ item, onSave, onClose }: Props) {
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[425px] overflow-hidden p-0 gap-0">
-        <div className="bg-primary/5 p-6 pb-4">
+    <Dialog open onOpenChange={(open) => !open && !saving && onClose()}>
+      <DialogContent className="sm:max-w-md overflow-hidden p-0 gap-0 border-none rounded-[2.5rem] shadow-2xl">
+        <div className="bg-primary/5 p-8 pb-4">
           <DialogHeader>
-            <div className="flex items-center gap-3 mb-1">
-              <div className="bg-primary/10 p-2 rounded-lg">
-                <Armchair className="size-5 text-primary" />
+            <div className="flex items-center gap-3 mb-2">
+              <div className="bg-primary/10 p-2.5 rounded-2xl">
+                <Armchair className="size-6 text-primary" />
               </div>
-              <DialogTitle className="text-xl">
-                {item ? "Chỉnh sửa bàn" : "Thêm bàn mới"}
+              <DialogTitle className="text-2xl font-black tracking-tight">
+                {item ? "Cài đặt bàn ăn" : "Thiết lập bàn mới"}
               </DialogTitle>
             </div>
-            <DialogDescription>
+            <DialogDescription className="font-medium text-slate-500">
               {item
-                ? `Cập nhật thông tin chi tiết cho bàn số ${item.number}.`
-                : "Tạo một bàn mới với mã QR tự động để khách hàng gọi món."}
+                ? `Thay đổi số chỗ ngồi hoặc quản lý mã QR cho Bàn số ${item.number}.`
+                : "Tạo một vị trí ngồi mới với mã QR tự động để thực khách gọi món."}
             </DialogDescription>
           </DialogHeader>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 pt-4 flex flex-col gap-6">
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="p-8 pt-6 flex flex-col gap-6">
+          <div className="grid grid-cols-2 gap-6">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="number" className="flex items-center gap-2 text-muted-foreground">
-                <Hash className="size-3.5" />
-                Số bàn
+              <Label htmlFor="number" className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">
+                Số bàn định danh
               </Label>
               <Input
                 id="number"
                 type="number"
                 value={form.number}
                 onChange={(e) => setForm({ ...form, number: Number(e.target.value) })}
-                className="font-medium"
-                placeholder="Ví dụ: 1"
+                className="h-12 rounded-xl border-slate-200 font-black text-xl text-center focus-visible:ring-primary shadow-sm"
+                placeholder="VD: 1"
                 min={1}
                 required
+                disabled={saving}
               />
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="seats" className="flex items-center gap-2 text-muted-foreground">
-                <Users className="size-3.5" />
-                Số chỗ ngồi
+              <Label htmlFor="seats" className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">
+                Số lượng chỗ ngồi
               </Label>
               <Input
                 id="seats"
                 type="number"
                 value={form.seats}
                 onChange={(e) => setForm({ ...form, seats: Number(e.target.value) })}
-                className="font-medium"
-                placeholder="Ví dụ: 4"
+                className="h-12 rounded-xl border-slate-200 font-bold text-center"
+                placeholder="VD: 4"
                 min={1}
                 required
+                disabled={saving}
               />
             </div>
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="status" className="flex items-center gap-2 text-muted-foreground">
-              <Activity className="size-3.5" />
-              Trạng thái hiện tại
+            <Label htmlFor="status" className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">
+              Trạng thái khả dụng
             </Label>
             <Select
               value={form.status}
               onValueChange={(val: any) => setForm({ ...form, status: val })}
+              disabled={saving}
             >
-              <SelectTrigger id="status" className="w-full font-medium">
+              <SelectTrigger id="status" className="h-12 rounded-xl border-slate-200 font-bold">
                 <SelectValue placeholder="Chọn trạng thái" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="rounded-xl border-slate-100 font-bold">
                 <SelectItem value="available">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 py-1">
                     <div className="size-2 rounded-full bg-emerald-500" />
-                    <span>Đang trống</span>
+                    <span>Đang trống (Sẵn sàng)</span>
                   </div>
                 </SelectItem>
                 <SelectItem value="occupied">
-                  <div className="flex items-center gap-2">
-                    <div className="size-2 rounded-full bg-orange-500" />
-                    <span>Có khách</span>
+                  <div className="flex items-center gap-2 py-1">
+                    <div className="size-2 rounded-full bg-orange-500 animate-pulse" />
+                    <span> Đang có khách</span>
                   </div>
                 </SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          <Separator />
+          <Separator className="bg-slate-100" />
 
-          <div className="flex flex-col items-center gap-3 p-4 bg-muted/40 rounded-xl border border-dashed">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <QrCode className="size-3.5" />
-              Mã QR Gọi Món
+          <div className="flex flex-col items-center gap-4 p-6 bg-slate-50/80 rounded-[2rem] border border-dashed border-slate-200 shadow-inner">
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">
+              <QrCode className="size-4" />
+              Giao diện gọi món kỹ thuật số
             </div>
-            <div className="relative group grayscale hover:grayscale-0 transition-all duration-300">
-              <div className="absolute -inset-2 bg-gradient-to-tr from-primary/10 to-transparent rounded-xl opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="relative group grayscale hover:grayscale-0 transition-all duration-500">
+              <div className="absolute -inset-4 bg-gradient-to-tr from-primary/20 via-primary/5 to-transparent rounded-[2.5rem] opacity-0 group-hover:opacity-100 transition-opacity blur-xl" />
               <img
                 src={form.qr_code}
                 alt="Table QR Code"
-                className="relative size-32 bg-white p-2 rounded-lg shadow-sm border"
+                className="relative size-36 bg-white p-4 rounded-3xl shadow-xl border border-slate-100 group-hover:scale-105 transition-transform"
               />
             </div>
 
-            <div className="w-full space-y-2 px-2">
-              <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">
-                <span>Đường dẫn gọi món</span>
-                <div className="flex items-center gap-2">
+            <div className="w-full space-y-3 px-2">
+              <div className="flex items-center justify-between text-[10px] font-black text-slate-300 uppercase tracking-widest px-2">
+                <span>Cổng đặt hàng online</span>
+                <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    className="text-primary hover:underline cursor-pointer bg-none border-none p-0"
+                    className="text-primary hover:text-primary/70 transition-colors"
                     onClick={() => {
                       const fullUrl = `${window.location.origin}/${tenantSlug}/table/${tableId}`;
                       navigator.clipboard.writeText(fullUrl);
-                      alert("Đã sao chép link!");
+                      alert("Đã sao chép đường dẫn bàn " + form.number);
                     }}
                   >
-                    Sao chép
+                    SAO CHÉP
                   </button>
-                  <span className="text-muted-foreground/30">•</span>
+                  <span className="opacity-20">•</span>
                   <button
                     type="button"
-                    className="text-primary hover:underline cursor-pointer bg-none border-none p-0 flex items-center gap-1"
+                    className="text-primary hover:text-primary/70 transition-colors"
                     onClick={() => {
-                      const printWindow = window.open('', '_blank', 'width=600,height=800');
-                      if (printWindow) {
-                        printWindow.document.write(`
-                          <html>
-                            <head>
-                              <title>In mã QR Bàn ${form.number}</title>
-                              <style>
-                                body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-                                .container { border: 2px solid #eee; padding: 40px; border-radius: 20px; text-align: center; max-width: 400px; }
-                                .logo { font-size: 24px; font-weight: 900; margin-bottom: 20px; text-transform: uppercase; letter-spacing: -1px; }
-                                .qr-code { width: 300px; height: 300px; margin: 20px 0; }
-                                .table-label { font-size: 48px; font-weight: 900; color: #000; margin: 10px 0; }
-                                .instruction { color: #666; font-size: 14px; margin-top: 20px; text-transform: uppercase; font-weight: bold; }
-                              </style>
-                            </head>
-                            <body>
-                              <div class="container">
-                                <div class="logo">@${tenantSlug}</div>
-                                <div class="instruction">Scan QR to order</div>
-                                <img src="${form.qr_code}" class="qr-code" />
-                                <div class="table-label">BÀN ${form.number}</div>
-                                <div style="margin-top: 30px; font-size: 10px; opacity: 0.3;">Power by Kiro</div>
-                              </div>
-                              <script>
-                                window.onload = () => {
-                                  window.print();
-                                  setTimeout(() => window.close(), 500);
-                                };
-                              </script>
-                            </body>
-                          </html>
-                        `);
-                        printWindow.document.close();
-                      }
+                        const printWindow = window.open('', '_blank', 'width=600,height=800');
+                        if (printWindow) {
+                          printWindow.document.write(`
+                            <html>
+                              <head>
+                                <title>In mã QR Bàn ${form.number}</title>
+                                <style>
+                                  body { font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #fff; }
+                                  .container { padding: 60px; border-radius: 40px; text-align: center; border: 1px solid #f0f0f0; box-shadow: 0 10px 40px rgba(0,0,0,0.02); }
+                                  .title { font-weight: 900; font-size: 20px; letter-spacing: 2px; color: #888; text-transform: uppercase; margin-bottom: 30px; }
+                                  .qr-img { width: 340px; height: 340px; padding: 20px; border-radius: 40px; background: #fff; border: 2px solid #000; }
+                                  .label { font-size: 80px; font-weight: 900; color: #000; margin-top: 20px; letter-spacing: -4px; line-height: 0.8; }
+                                  .sub { font-size: 14px; font-weight: bold; color: #aaa; margin-top: 40px; text-transform: uppercase; letter-spacing: 4px; }
+                                </style>
+                              </head>
+                              <body>
+                                <div class="container">
+                                  <div class="title">BÚN QUẬY KIRO</div>
+                                  <img src="${form.qr_code}" class="qr-img" />
+                                  <div class="label">BÀN ${form.number}</div>
+                                  <div class="sub">Quét mã để đặt món</div>
+                                </div>
+                                <script>
+                                  window.onload = () => {
+                                    window.print();
+                                    setTimeout(() => window.close(), 500);
+                                  };
+                                </script>
+                              </body>
+                            </html>
+                          `);
+                          printWindow.document.close();
+                        }
                     }}
                   >
-                    In mã QR
+                    IN MÃ QR
                   </button>
                 </div>
               </div>
-              <a
-                href={`${typeof window !== "undefined" ? window.location.origin : ""}/${tenantSlug}/table/${tableId}`}
-                target="_blank"
-                rel="noreferrer"
-                className="group flex items-center justify-between bg-background border rounded-xl p-3 text-[11px] font-mono break-all text-muted-foreground transition-all hover:border-primary/50 hover:bg-primary/5 ring-1 ring-primary/5"
-              >
-                <span className="truncate max-w-[240px]">
-                  {typeof window !== "undefined" ? window.location.origin : ""}/{tenantSlug}/table/{tableId}
-                </span>
-                <div className="size-6 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                  <Activity className="size-3.5" />
-                </div>
-              </a>
+              <div className="bg-white border-slate-100 border p-3 rounded-xl text-[10px] font-mono text-slate-400 truncate shadow-sm">
+                {typeof window !== "undefined" ? window.location.origin : ""}/{tenantSlug}/table/{tableId}
+              </div>
             </div>
-
-            <p className="text-[10px] text-muted-foreground text-center max-w-[200px]">
-              Khách hàng quét mã trên hoặc truy cập đường dẫn này để xem thực đơn.
-            </p>
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0 pt-2">
+          <DialogFooter className="gap-3 sm:gap-0 pt-2">
             <Button
               type="button"
               variant="ghost"
               onClick={onClose}
-              className="flex-1 sm:flex-none"
+              disabled={saving}
+              className="flex-1 sm:flex-none font-bold rounded-xl"
             >
               Hủy bỏ
             </Button>
-            <Button type="submit" className="flex-1 sm:flex-none shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90">
-              {item ? (
-                <>
-                  <Check className="size-4 mr-2" />
-                  Lưu thay đổi
-                </>
-              ) : (
-                <>
-                  Thêm bàn ngay
-                </>
-              )}
+            <Button 
+                type="submit" 
+                disabled={saving} 
+                className="flex-1 sm:flex-none h-14 rounded-xl px-10 font-black shadow-xl shadow-primary/20 bg-primary hover:bg-primary/90 transition-all active:scale-95"
+            >
+              {saving ? "ĐANG XỬ LÝ..." : (item ? "LƯU THAY ĐỔI" : "TẠO BÀN NGAY")}
             </Button>
           </DialogFooter>
         </form>

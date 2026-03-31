@@ -1,6 +1,8 @@
 import { createServerClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 async function getTenantIdBySlug(slug: string): Promise<string | null> {
   const supabase = await createServerClient();
   const { data, error } = await supabase
@@ -33,6 +35,7 @@ export async function GET(
         orders (
           id,
           status,
+          session_id,
           order_items (
             quantity,
             unit_price
@@ -45,7 +48,11 @@ export async function GET(
     if (error) throw error;
 
     const tables = (tablesData || []).map((table: any) => {
-      const activeOrders = table.orders?.filter((o: any) => ["preparing", "completed", "pending"].includes(o.status)) || [];
+      const activeOrders = table.orders?.filter((o: any) =>
+        ["preparing", "completed", "pending"].includes(o.status) &&
+        o.session_id === table.session_id
+      ) || [];
+
       const currentTotal = activeOrders.reduce((total: number, order: any) => {
         const orderTotal = order.order_items?.reduce((oTotal: number, item: any) => oTotal + (item.quantity * item.unit_price), 0) || 0;
         return total + orderTotal;
@@ -83,14 +90,15 @@ export async function POST(
 
     const { data, error } = await supabase
       .from("tables")
-      .insert({
+      .upsert({
         id,
         number,
         qr_code,
         seats,
         status: status || "available",
-        tenant_id: tenantId
-      })
+        tenant_id: tenantId,
+        ...(status === "available" ? { session_id: null, session_expires_at: null } : {})
+      }, { onConflict: 'id' })
       .select()
       .single();
 
@@ -128,7 +136,9 @@ export async function PUT(
         number,
         qr_code,
         seats,
-        status
+        status,
+        // Clear session if table is available
+        ...(status === "available" ? { session_id: null, session_expires_at: null } : {})
       })
       .eq("id", id)
       .eq("tenant_id", tenantId)

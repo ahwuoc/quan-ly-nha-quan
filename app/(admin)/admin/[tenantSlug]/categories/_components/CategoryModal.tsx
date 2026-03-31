@@ -23,9 +23,10 @@ interface Props {
   onSave: (category: Category) => void;
   onClose: () => void;
   tenantSlug: string;
+  saving?: boolean;
 }
 
-export default function CategoryModal({ item, maxSortOrder = 0, onSave, onClose, tenantSlug }: Props) {
+export default function CategoryModal({ item, maxSortOrder = 0, onSave, onClose, tenantSlug, saving }: Props) {
   const [form, setForm] = useState({
     name: item?.name ?? "",
     icon: item?.icon ?? "📁",
@@ -35,24 +36,30 @@ export default function CategoryModal({ item, maxSortOrder = 0, onSave, onClose,
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name.trim()) return;
+    if (!form.name.trim() || saving) return;
     onSave({
       ...form,
       id: item?.id ?? `c${Date.now()}`,
-    });
+    } as Category);
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{item ? "Sửa danh mục" : "Thêm danh mục mới"}</DialogTitle>
-          <DialogDescription>
-            {item ? "Cập nhật tên, icon và hình ảnh hiển thị cho nhóm thực đơn này." : "Tạo và phân loại các món ăn mới cho nhà hàng của bạn."}
-          </DialogDescription>
-        </DialogHeader>
+    <Dialog open onOpenChange={(open) => !open && !saving && onClose()}>
+      <DialogContent className="sm:max-w-md rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
+        <div className="bg-primary/5 p-8 pb-4">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black tracking-tight">
+              {item ? "Chỉnh sửa danh mục" : "Thêm danh mục mới"}
+            </DialogTitle>
+            <DialogDescription className="font-medium text-slate-500">
+              {item
+                ? `Cập nhật thông tin và hình ảnh cho nhóm món ${item.name}.`
+                : "Tạo một nhóm món mới để dễ dàng quản lý thực đơn của bạn."}
+            </DialogDescription>
+          </DialogHeader>
+        </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="p-8 pt-6 flex flex-col gap-6">
           <div className="flex flex-col gap-1.5">
             <Label>Hình ảnh danh mục</Label>
             <ImageUpload
@@ -70,23 +77,12 @@ export default function CategoryModal({ item, maxSortOrder = 0, onSave, onClose,
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="VD: Đồ nhậu"
               required
+              disabled={saving}
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="icon">Icon (emoji)</Label>
-            <Input
-              id="icon"
-              value={form.icon}
-              onChange={(e) => setForm({ ...form, icon: e.target.value })}
-              placeholder="🍖"
-              maxLength={2}
-              required
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="sort_order">Thứ tự</Label>
+            <Label htmlFor="sort_order">Thứ tự hiển thị</Label>
             <Input
               id="sort_order"
               type="number"
@@ -94,12 +90,15 @@ export default function CategoryModal({ item, maxSortOrder = 0, onSave, onClose,
               onChange={(e) => setForm({ ...form, sort_order: Number(e.target.value) || 0 })}
               placeholder="0"
               min={0}
+              disabled={saving}
             />
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
-            <Button type="submit">{item ? "Lưu thay đổi" : "Thêm danh mục"}</Button>
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Hủy</Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? "Đang xử lý..." : (item ? "Lưu thay đổi" : "Thêm danh mục")}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

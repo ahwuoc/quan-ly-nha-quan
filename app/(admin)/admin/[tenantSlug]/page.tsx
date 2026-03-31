@@ -6,203 +6,271 @@ import {
   UtensilsCrossed,
   Grid3x3,
   Tag,
-  QrCode,
   ArrowRight,
   Zap,
   CheckCircle2,
   Clock,
   TrendingUp,
-  Store,
-  LayoutDashboard
+  LayoutDashboard,
+  DollarSign,
+  Users,
+  ChefHat,
+  AlertCircle
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { getSupabaseClient } from "@/lib/supabase-client";
+
+interface DashboardStats {
+  totalItems: number;
+  totalTables: number;
+  occupiedTables: number;
+  totalOrdersCount: number;
+  revenue: number;
+  orders: any[];
+}
 
 export default function TenantDashboard() {
   const params = useParams();
   const tenantSlug = params.tenantSlug as string;
-  const [counts, setCounts] = useState({ items: 0, tables: 0, categories: 0, orders: 0 });
+  const [stats, setStats] = useState<DashboardStats>({
+    totalItems: 0,
+    totalTables: 0,
+    occupiedTables: 0,
+    totalOrdersCount: 0,
+    revenue: 0,
+    orders: []
+  });
   const [loading, setLoading] = useState(true);
-
   const [lastUpdated, setLastUpdated] = useState<string>("");
 
-  useEffect(() => {
-    setLastUpdated(new Date().toLocaleTimeString());
-    async function fetchStats() {
-      try {
-        const [itemsRes, tablesRes, categoriesRes, ordersRes] = await Promise.all([
-          fetch(`/api/admin/${tenantSlug}/menu-items`),
-          fetch(`/api/admin/${tenantSlug}/tables`),
-          fetch(`/api/admin/${tenantSlug}/categories`),
-          fetch(`/api/admin/${tenantSlug}/orders`),
-        ]);
+  const supabase = getSupabaseClient();
 
-        const [items, tables, categories, orders] = await Promise.all([
-          itemsRes.json(),
-          tablesRes.json(),
-          categoriesRes.json(),
-          ordersRes.json(),
-        ]);
+  async function fetchStats() {
+    try {
+      const [itemsRes, tablesRes, ordersRes] = await Promise.all([
+        fetch(`/api/admin/${tenantSlug}/menu-items`),
+        fetch(`/api/admin/${tenantSlug}/tables`),
+        fetch(`/api/admin/${tenantSlug}/orders`),
+      ]);
 
-        setCounts({
-          items: Array.isArray(items) ? items.length : 0,
-          tables: Array.isArray(tables) ? tables.length : 0,
-          categories: Array.isArray(categories) ? categories.length : 0,
-          orders: Array.isArray(orders) ? orders.length : 0,
-        });
-      } catch (error) {
-        console.error("Failed to fetch dashboard stats:", error);
-      } finally {
-        setLoading(false);
-      }
+      const [items, tables, orders] = await Promise.all([
+        itemsRes.json(),
+        tablesRes.json(),
+        ordersRes.json(),
+      ]);
+
+      const itemsArr = Array.isArray(items) ? items : [];
+      const tablesArr = Array.isArray(tables) ? tables : [];
+      const ordersArr = Array.isArray(orders) ? orders : [];
+
+      const revenue = ordersArr
+        .filter((o: any) => o.status === "completed")
+        .reduce((sum: number, o: any) => {
+          const orderTotal = o.order_items.reduce((s: number, i: any) => s + (i.unit_price * i.quantity), 0);
+          return sum + orderTotal;
+        }, 0);
+
+      const occupied = tablesArr.filter((t: any) => t.status === "occupied").length;
+
+      setStats({
+        totalItems: itemsArr.length,
+        totalTables: tablesArr.length,
+        occupiedTables: occupied,
+        totalOrdersCount: ordersArr.length,
+        revenue,
+        orders: ordersArr.slice(0, 5), // Lấy 5 đơn gần nhất
+      });
+      setLastUpdated(new Date().toLocaleTimeString("vi-VN"));
+    } catch (error) {
+      console.error("Failed to fetch dashboard stats:", error);
+    } finally {
+      setLoading(false);
     }
+  }
+
+  useEffect(() => {
     fetchStats();
+
+    const channel = supabase
+      .channel("dashboard-sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchStats())
+      .on("postgres_changes", { event: "*", schema: "public", table: "tables" }, () => fetchStats())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [tenantSlug]);
 
-  const stats = [
-    { label: "Món ăn", value: counts.items, icon: UtensilsCrossed, color: "text-blue-500", bg: "bg-blue-500/10", href: `/admin/${tenantSlug}/menu` },
-    { label: "Bàn ăn", value: counts.tables, icon: Grid3x3, color: "text-emerald-500", bg: "bg-emerald-500/10", href: `/admin/${tenantSlug}/tables` },
-    { label: "Đơn hàng", value: counts.orders, icon: Zap, color: "text-red-500", bg: "bg-red-500/10", href: `/admin/${tenantSlug}/orders` },
-    { label: "Danh mục", value: counts.categories, icon: Tag, color: "text-orange-500", bg: "bg-orange-500/10", href: `/admin/${tenantSlug}/categories` },
+  const cards = [
+    { label: "Doanh thu", value: `${stats.revenue.toLocaleString()}đ`, icon: DollarSign, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+    { label: "Đơn hàng", value: stats.totalOrdersCount, icon: Zap, color: "text-blue-500", bg: "bg-blue-500/10" },
+    { label: "Món ăn", value: stats.totalItems, icon: UtensilsCrossed, color: "text-orange-500", bg: "bg-orange-500/10" },
+    { label: "Đang phục vụ", value: stats.occupiedTables, icon: Users, color: "text-red-500", bg: "bg-red-500/10" },
   ];
 
+  const occupancyRate = stats.totalTables > 0 ? (stats.occupiedTables / stats.totalTables) * 100 : 0;
+
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      {/* Header section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="p-6 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-1000">
+
+      {/* Upper Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <div className="bg-primary/10 p-2 rounded-xl">
-              <LayoutDashboard className="size-5 text-primary" />
+          <div className="flex items-center gap-3">
+            <div className="bg-primary/10 p-2.5 rounded-2xl">
+              <LayoutDashboard className="size-6 text-primary" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight">Tổng quan quản trị</h1>
+            <h1 className="text-3xl font-black tracking-tighter uppercase italic">Control Center</h1>
           </div>
-          <p className="text-muted-foreground ml-1">
-            Theo dõi trạng thái và quản lý nội dung của <span className="text-foreground font-semibold">@{tenantSlug}</span>
-          </p>
+          <p className="text-muted-foreground text-sm font-medium">Báo cáo doanh thu và vận hành thời gian thực cho <span className="text-foreground font-black">@{tenantSlug}</span></p>
         </div>
-        <div className="flex items-center gap-3">
-          <Badge variant="outline" className="bg-background px-3 py-1.5 rounded-full border-primary/20 text-xs font-semibold uppercase tracking-tighter">
-            <Clock className="size-3 mr-1.5 text-primary" />
-            Mới cập nhật: {lastUpdated || "Đang tải..."}
-          </Badge>
-        </div>
+        <Badge variant="outline" className="h-10 px-4 rounded-full border-primary/20 bg-primary/5 text-primary font-bold">
+          <Clock className="size-3.5 mr-2 animate-pulse" />
+          Cập nhật lúc: {lastUpdated || "--:--"}
+        </Badge>
       </div>
 
-      {/* Stats Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map(({ label, value, icon: Icon, color, bg, href }) => (
-          <Link key={label} href={href}>
-            <Card className="relative overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border-primary/5">
-              <div className={cn("absolute top-0 right-0 size-24 -mr-8 -mt-8 rounded-full blur-3xl opacity-20", bg)} />
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className={cn("p-2.5 rounded-xl transition-colors duration-300", bg)}>
-                    <Icon className={cn("size-5", color)} />
-                  </div>
-                  <TrendingUp className="size-4 text-muted-foreground/30" />
-                </div>
-                <div className="mt-4 space-y-1">
-                  <p className="text-3xl font-black tracking-tight tracking-[-0.05em]">{loading ? "..." : value}</p>
-                  <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{label}</p>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
+      {/* Hero Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {cards.map((c, i) => (
+          <Card key={i} className="border-none shadow-xl shadow-slate-200/50 rounded-[32px] overflow-hidden group hover:scale-[1.02] transition-all">
+            <CardContent className="p-8 space-y-4">
+              <div className={cn("size-12 rounded-2xl flex items-center justify-center transition-transform group-hover:rotate-12", c.bg)}>
+                <c.icon className={cn("size-6", c.color)} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">{c.label}</p>
+                <h3 className="text-3xl font-black tracking-tighter mt-1">{loading ? "..." : c.value}</h3>
+              </div>
+            </CardContent>
+          </Card>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Quick Actions */}
-        <Card className="lg:col-span-2 border-primary/5 shadow-sm rounded-2xl overflow-hidden">
-          <CardHeader className="bg-muted/30 pb-4">
-            <div className="flex items-center justify-between">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+        {/* Left Column: Orders and Actions */}
+        <div className="lg:col-span-2 space-y-8">
+
+          {/* Recent Orders List */}
+          <Card className="border-none shadow-xl shadow-slate-200/50 rounded-[40px] overflow-hidden">
+            <CardHeader className="p-8 pb-4 flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-lg">Truy cập nhanh</CardTitle>
-                <CardDescription>Tiên ích quản lý dành cho chủ quán</CardDescription>
+                <CardTitle className="text-xl font-black uppercase tracking-tight">Giao dịch mới nhất</CardTitle>
+                <CardDescription className="text-xs font-bold text-muted-foreground uppercase">Top 5 đơn hàng vừa phát sinh</CardDescription>
               </div>
-              <Zap className="size-5 text-yellow-500 fill-yellow-500/20" />
-            </div>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Link href={`/admin/${tenantSlug}/menu`} className="group flex items-start gap-4 p-4 rounded-2xl border bg-card hover:bg-primary/5 hover:border-primary/20 transition-all">
-                <div className="bg-primary/10 p-3 rounded-xl group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                  <UtensilsCrossed className="size-5" />
-                </div>
-                <div className="space-y-1 flex-1">
-                  <p className="font-bold">Quản lý thực đơn</p>
-                  <p className="text-xs text-muted-foreground leading-relaxed">Cập nhật món ăn, hình ảnh và giá cả linh hoạt.</p>
-                  <div className="flex items-center text-[10px] font-bold text-primary pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    MỞ NGAY <ArrowRight className="size-3 ml-1" />
+              <Button variant="ghost" size="sm" asChild className="rounded-full font-bold">
+                <Link href={`/admin/${tenantSlug}/orders`}>Xem tất cả <ArrowRight size={14} className="ml-2" /></Link>
+              </Button>
+            </CardHeader>
+            <CardContent className="p-8 pt-0">
+              <div className="space-y-4">
+                {stats.orders.length === 0 ? (
+                  <div className="py-12 text-center text-muted-foreground border-2 border-dashed rounded-[32px]">Chưa có đơn hàng nào</div>
+                ) : stats.orders.map((o, i) => (
+                  <div key={i} className="flex items-center justify-between p-4 bg-muted/20 rounded-3xl border border-transparent hover:border-primary/20 transition-all group">
+                    <div className="flex items-center gap-4">
+                      <div className="size-10 bg-white rounded-full border shadow-sm flex items-center justify-center font-black text-xs text-primary">
+                        {o.table?.number || "?"}
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm">Bàn {o.table?.number}</p>
+                        <p className="text-[10px] text-muted-foreground font-black uppercase">{new Date(o.created_at).toLocaleTimeString("vi-VN")}</p>
+                      </div>
+                    </div>
+                    <Badge className={cn(
+                      "rounded-full text-[10px] font-black uppercase tracking-widest",
+                      o.status === "completed" ? "bg-emerald-500" : o.status === "pending" ? "bg-amber-500" : "bg-blue-500"
+                    )}>
+                      {o.status}
+                    </Badge>
                   </div>
-                </div>
-              </Link>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
-              <Link href={`/admin/${tenantSlug}/tables`} className="group flex items-start gap-4 p-4 rounded-2xl border bg-card hover:bg-primary/5 hover:border-primary/20 transition-all">
-                <div className="bg-primary/10 p-3 rounded-xl group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                  <Grid3x3 className="size-5" />
-                </div>
-                <div className="space-y-1 flex-1">
-                  <p className="font-bold">Sơ đồ nhà hàng</p>
-                  <p className="text-xs text-muted-foreground leading-relaxed">Sắp xếp bàn ăn, gán số bàn và tải mã QR Code.</p>
-                  <div className="flex items-center text-[10px] font-bold text-primary pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    MỞ NGAY <ArrowRight className="size-3 ml-1" />
-                  </div>
-                </div>
-              </Link>
-            </div>
-          </CardContent>
-          <Separator />
-          <div className="p-4 bg-muted/20 flex items-center justify-center">
-            <Button variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
-              Xem thêm tiện ích <ArrowRight className="size-3 ml-1.5" />
-            </Button>
+          {/* Quick Shortcuts */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <Link href={`/admin/${tenantSlug}/menu`} className="p-8 bg-primary rounded-[40px] text-white shadow-2xl shadow-primary/30 group hover:-translate-y-2 transition-all">
+              <ChefHat size={40} className="mb-6 opacity-30 group-hover:scale-110 transition-transform" />
+              <h3 className="text-2xl font-black tracking-tighter uppercase italic leading-none">Chỉnh sửa thực đơn</h3>
+              <p className="text-white/60 text-xs font-medium mt-3">Thêm món, đổi giá và hình ảnh ngay lập tức.</p>
+            </Link>
+            <Link href={`/admin/${tenantSlug}/tables`} className="p-8 bg-slate-900 rounded-[40px] text-white shadow-2xl shadow-slate-900/30 group hover:-translate-y-2 transition-all">
+              <div className="size-14 bg-white/10 rounded-2xl flex items-center justify-center mb-6 group-hover:rotate-12 transition-transform">
+                <Users size={28} />
+              </div>
+              <h3 className="text-xl font-black uppercase tracking-tight">Bàn ăn</h3>
+              <p className="text-[11px] font-bold text-white/50 uppercase tracking-widest mt-1">Quản lý không gian</p>
+            </Link>
+
+            <Link href={`/admin/${tenantSlug}/analysis`} className="p-8 bg-emerald-500 rounded-[40px] text-white shadow-2xl shadow-emerald-500/30 group hover:-translate-y-2 transition-all">
+              <div className="size-14 bg-white/10 rounded-2xl flex items-center justify-center mb-6 group-hover:rotate-12 transition-transform">
+                <TrendingUp size={28} />
+              </div>
+              <h3 className="text-xl font-black uppercase tracking-tight">Phân tích</h3>
+              <p className="text-[11px] font-bold text-white/50 uppercase tracking-widest mt-1">Doanh thu & Xu hướng</p>
+            </Link>
           </div>
-        </Card>
+        </div>
 
-        {/* Steps Card */}
-        <Card className="border-primary/5 shadow-sm rounded-2xl overflow-hidden">
-          <CardHeader className="bg-primary pb-6 text-primary-foreground relative overflow-hidden">
-            <div className="absolute top-0 right-0 size-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl" />
-            <CardTitle className="text-xl">Bắt đầu nào! 🚀</CardTitle>
-            <CardDescription className="text-primary-foreground/80">Quy trình 4 bước để quán vận hành</CardDescription>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="relative space-y-6 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[1px] before:bg-border">
-              {[
-                { title: "Thiết lập thực đơn", desc: "Tạo danh mục và món ăn đầu tiên.", done: counts.items > 0 },
-                { title: "Khai báo bàn", desc: "Định danh số bàn cho từng khu vực.", done: counts.tables > 0 },
-                { title: "In mã QR Code", desc: "Dán QR lên bàn để khách quét gọi món.", done: counts.tables > 0 },
-                { title: "Sẵn sàng phục vụ", desc: "Hệ thống đã sẵn sàng nhận đơn hàng.", done: counts.items > 0 && counts.tables > 0 },
-              ].map((step, i) => (
-                <div key={i} className="relative flex gap-4 pl-0">
-                  <div className={cn(
-                    "relative z-10 size-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-500 shadow-sm border-2",
-                    step.done
-                      ? "bg-primary border-primary text-primary-foreground scale-110"
-                      : "bg-background border-border text-muted-foreground"
-                  )}>
-                    {step.done ? <CheckCircle2 className="size-3.5" /> : i + 1}
-                  </div>
-                  <div className="flex-1 space-y-0.5">
-                    <p className={cn("text-sm font-bold transition-colors", step.done ? "text-foreground" : "text-muted-foreground")}>{step.title}</p>
-                    <p className="text-[11px] text-muted-foreground leading-snug">{step.desc}</p>
-                  </div>
-                </div>
-              ))}
+        {/* Right Column: Insights */}
+        <div className="space-y-8">
+
+          {/* Capacity Insights */}
+          <Card className="border-none shadow-xl shadow-slate-200/50 rounded-[40px] overflow-hidden p-8 space-y-6">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-black uppercase tracking-tighter italic">Lấp đầy bàn</h3>
+                <TrendingUp size={16} className="text-primary" />
+              </div>
+              <div className="flex items-end gap-2">
+                <span className="text-5xl font-black tracking-tighter">{stats.occupiedTables}</span>
+                <span className="text-slate-400 font-bold text-lg mb-1">/ {stats.totalTables} bàn</span>
+              </div>
             </div>
 
-            <Button className="w-full mt-8 rounded-xl shadow-lg shadow-primary/20">
-              Khám phá đầy đủ <ArrowRight className="size-4 ml-2" />
-            </Button>
-          </CardContent>
-        </Card>
+            <div className="space-y-2">
+              <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-muted-foreground">
+                <span>Mức độ bận rộn</span>
+                <span>{Math.round(occupancyRate)}%</span>
+              </div>
+              <Progress value={occupancyRate} className="h-4 rounded-full bg-slate-100" />
+            </div>
+
+            <div className="pt-4 grid grid-cols-2 gap-4">
+              <div className="p-4 bg-muted/30 rounded-3xl">
+                <p className="text-[10px] font-black uppercase text-muted-foreground mb-1">Số món có sẵn</p>
+                <p className="text-xl font-bold">{stats.totalItems}</p>
+              </div>
+              <div className="p-4 bg-muted/30 rounded-3xl">
+                <p className="text-[10px] font-black uppercase text-muted-foreground mb-1">Người đang xem</p>
+                <p className="text-xl font-bold">{stats.occupiedTables * 2}+</p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Quick Support / Alert */}
+          <Card className="bg-amber-50 border-none rounded-[40px] p-8 space-y-4">
+            <div className="size-10 bg-amber-200 rounded-2xl flex items-center justify-center text-amber-700">
+              <AlertCircle size={20} />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-black uppercase tracking-tighter text-amber-900">Mẹo quản lý</h4>
+              <p className="text-xs text-amber-800/70 font-medium leading-relaxed">Luôn đảm bảo hình ảnh món ăn rực rỡ để kích thích vị giác của khách hàng hơn 25%!</p>
+            </div>
+            <Button size="sm" className="w-full rounded-2xl bg-amber-900 hover:bg-amber-800 text-white font-bold text-[10px] uppercase">Tìm hiểu thêm</Button>
+          </Card>
+
+        </div>
+
       </div>
+
     </div>
   );
 }

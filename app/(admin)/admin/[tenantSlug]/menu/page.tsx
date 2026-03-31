@@ -41,10 +41,13 @@ export default function MenuPage() {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [filterCat, setFilterCat] = useState<string | "all">("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [modal, setModal] = useState<{ open: boolean; item?: MenuItem }>({ open: false });
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  
+  const [deleteTarget, setDeleteTarget] = useState<MenuItem | null>(null);
+  const [confirmDeleteText, setConfirmDeleteText] = useState("");
 
   useEffect(() => {
     fetchData();
@@ -87,6 +90,8 @@ export default function MenuPage() {
   }
 
   async function handleSave(item: MenuItem) {
+    if (saving) return;
+    setSaving(true);
     try {
       const isNew = item.id.startsWith("m") || item.id.startsWith("temp-");
       const res = await fetch(`/api/admin/${tenantSlug}/menu-items`, {
@@ -102,28 +107,34 @@ export default function MenuPage() {
           image_url: (item as any).image_url || item.image,
         }),
       });
-      if (!res.ok) throw new Error(`Failed to ${isNew ? "create" : "update"} item`);
+      if (!res.ok) throw new Error(`Failed to save item`);
 
-      await fetchItems();
+      await fetchData();
       setModal({ open: false });
     } catch (error) {
       console.error("Failed to save item:", error);
       alert("Lỗi khi lưu món");
+    } finally {
+      setSaving(false);
     }
   }
 
-  async function confirmDelete() {
-    if (!deleteId) return;
+  async function executeDelete() {
+    if (!deleteTarget || saving) return;
+    setSaving(true);
     try {
-      const res = await fetch(`/api/admin/${tenantSlug}/menu-items?id=${deleteId}`, {
+      const res = await fetch(`/api/admin/${tenantSlug}/menu-items?id=${deleteTarget.id}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Failed to delete item");
-      await fetchItems();
-      setDeleteId(null);
+      await fetchData();
+      setDeleteTarget(null);
+      setConfirmDeleteText("");
     } catch (error) {
       console.error("Failed to delete item:", error);
       alert("Lỗi khi xóa món");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -137,7 +148,7 @@ export default function MenuPage() {
         body: JSON.stringify({ available: !item.available }),
       });
       if (!res.ok) throw new Error("Failed to update item");
-      await fetchItems();
+      await fetchData();
     } catch (error) {
       console.error("Failed to toggle availability:", error);
       alert("Lỗi khi cập nhật trạng thái");
@@ -167,11 +178,11 @@ export default function MenuPage() {
             size="icon"
             onClick={fetchItems}
             disabled={loading}
-            className="rounded-full"
+            className="rounded-full bg-white shadow-sm"
           >
-            <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+            <RefreshCw className={cn("size-4 text-slate-500", loading && "animate-spin")} />
           </Button>
-          <Button onClick={() => setModal({ open: true })} className="rounded-full shadow-lg shadow-primary/25">
+          <Button onClick={() => setModal({ open: true })} className="rounded-2xl h-11 px-6 shadow-lg shadow-primary/25 font-bold">
             <Plus className="size-4 mr-2" />
             Thêm món mới
           </Button>
@@ -179,39 +190,39 @@ export default function MenuPage() {
       </div>
 
       {/* Filters and search */}
-      <div className="bg-muted/30 p-4 rounded-2xl border space-y-4">
+      <div className="bg-white p-6 rounded-[2.5rem] border-primary/5 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <div className="relative w-full sm:w-96">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-slate-300" />
             <Input
-              placeholder="Tìm kiếm món ăn..."
+              placeholder="Tìm món ngon của bạn..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 bg-background border-none shadow-none ring-1 ring-border"
+              className="pl-11 h-12 bg-slate-50 border-none shadow-none rounded-2xl font-medium"
             />
           </div>
-          <div className="flex gap-4 text-xs font-semibold text-muted-foreground">
+          <div className="flex gap-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="size-3.5 text-emerald-500" />
+              <div className="size-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>{items.filter(i => i.available).length} Đang bán</span>
             </div>
             <div className="flex items-center gap-2">
-              <XCircle className="size-3.5 text-orange-500" />
+              <div className="size-2 rounded-full bg-orange-500" />
               <span>{items.filter(i => !i.available).length} Tạm ngưng</span>
             </div>
           </div>
         </div>
 
-        <Separator className="bg-border/50" />
+        <Separator className="bg-slate-100" />
 
-        <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+        <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
           <Button
             variant={filterCat === "all" ? "default" : "secondary"}
             size="sm"
             onClick={() => setFilterCat("all")}
-            className="rounded-full px-4"
+            className="rounded-xl h-10 px-5 font-bold transition-all"
           >
-            Tất cả
+            ⚡ Tất cả món
           </Button>
           {categories.map((cat) => (
             <Button
@@ -219,9 +230,8 @@ export default function MenuPage() {
               variant={filterCat === cat.id ? "default" : "secondary"}
               size="sm"
               onClick={() => setFilterCat(cat.id)}
-              className="rounded-full px-4 whitespace-nowrap"
+              className="rounded-xl h-10 px-5 font-bold whitespace-nowrap"
             >
-              <span className="mr-2">{cat.icon}</span>
               {cat.name}
             </Button>
           ))}
@@ -230,107 +240,103 @@ export default function MenuPage() {
 
       {/* Menu grid */}
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {[1, 2, 3].map(i => (
-            <div key={i} className="h-64 rounded-2xl bg-muted animate-pulse" />
+            <div key={i} className="h-80 rounded-[2.5rem] bg-muted/40 animate-pulse" />
           ))}
         </div>
       ) : filtered.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filtered.map((item) => (
             <Card key={item.id} className={cn(
-              "group overflow-hidden rounded-2xl transition-all duration-300 hover:shadow-xl border-primary/5",
-              !item.available && "bg-muted/50 grayscale-[0.5]"
+              "group relative overflow-hidden rounded-[2.5rem] transition-all duration-500 hover:shadow-2xl border-primary/5 bg-white",
+              !item.available && "opacity-75 grayscale-[0.8]"
             )}>
-              <div className="aspect-[16/9] bg-muted relative flex items-center justify-center group-hover:scale-105 transition-transform duration-500 overflow-hidden">
+              <div className="aspect-[4/3] bg-slate-50 relative flex items-center justify-center overflow-hidden">
                 {item.image ? (
                   <img
                     src={item.image}
                     alt={item.name}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                     onError={(e) => {
                       (e.target as HTMLImageElement).src = `https://placehold.co/600x400?text=${encodeURIComponent(item.name)}`;
                     }}
                   />
                 ) : (
-                  <div className="text-6xl">
-                    {CATEGORY_ICONS[item.category || item.categoryId || "khac"]}
+                  <div className="bg-primary/5 size-full flex items-center justify-center">
+                    <UtensilsCrossed className="size-16 text-primary/10" />
                   </div>
                 )}
                 {!item.available && (
-                  <div className="absolute inset-0 bg-background/60 backdrop-blur-[2px] flex items-center justify-center">
-                    <Badge variant="secondary" className="px-3 py-1 font-bold text-xs uppercase tracking-widest">Tạm hết hàng</Badge>
+                  <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center">
+                    <Badge variant="secondary" className="px-5 py-2 rounded-full font-black text-[10px] uppercase tracking-widest bg-white text-slate-900">Hết món</Badge>
                   </div>
                 )}
               </div>
-              <CardContent className="p-5 space-y-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="space-y-1">
-                    <CardTitle className="text-lg font-bold truncate">{item.name}</CardTitle>
-                    <p className="text-sm text-muted-foreground line-clamp-1 h-5">{item.description || "Chưa có mô tả"}</p>
+              <CardContent className="p-6 space-y-6">
+                <div className="space-y-1.5 px-1">
+                  <div className="flex items-center justify-between gap-4">
+                    <CardTitle className="text-xl font-black text-slate-800 truncate">{item.name}</CardTitle>
+                    <span className="text-lg font-black text-primary whitespace-nowrap">
+                      {(item.price || 0).toLocaleString("vi-VN")}đ
+                    </span>
                   </div>
+                  <p className="text-sm font-medium text-slate-400 line-clamp-1 h-5">{item.description || "Hương vị tuyệt hảo từ bếp trưởng..."}</p>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-xl font-black text-primary">
-                    {(item.price || 0).toLocaleString("vi-VN")}
-                    <span className="text-xs font-medium ml-0.5">đ</span>
-                  </span>
-                  <Badge variant="outline" className="rounded-full bg-background/50">
-                    {(() => {
-                      const cat = categories.find(c => c.id === (item.category || item.categoryId));
-                      return cat ? (
-                        <>{cat.icon} {cat.name}</>
-                      ) : (
-                        <>{CATEGORY_ICONS[item.category as Category || "khac"]} {CATEGORY_LABELS[item.category as Category || "khac"]}</>
-                      );
-                    })()}
+                  <Badge variant="outline" className="rounded-xl px-3 py-1 bg-slate-50 border-none text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                    {categories.find(c => c.id === (item.category || item.categoryId))?.name || "Khác"}
                   </Badge>
+                  
+                  <div className="flex gap-2">
+                     <Button
+                      variant="secondary"
+                      size="icon"
+                      className="size-10 rounded-xl bg-slate-50 border-none text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors"
+                      onClick={() => setModal({ open: true, item })}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="size-10 rounded-xl bg-slate-50 border-none text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      onClick={() => setDeleteTarget(item)}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
                 </div>
 
-                <Separator />
-
-                <div className="flex gap-2">
-                  <Button
-                    variant={item.available ? "outline" : "secondary"}
-                    size="sm"
-                    className="flex-1 rounded-lg text-xs"
-                    onClick={() => toggleAvailable(item.id)}
-                  >
-                    {item.available ? "Tạm ngưng" : "Mở bán lại"}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    className="size-9 rounded-lg"
-                    onClick={() => setModal({ open: true, item })}
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    className="size-9 rounded-lg text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => setDeleteId(item.id)}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </div>
+                <Button
+                  variant={item.available ? "outline" : "default"}
+                  size="sm"
+                  className={cn(
+                    "w-full h-12 rounded-2xl font-bold transition-all border-2",
+                    item.available 
+                      ? "border-slate-100 text-slate-600 hover:border-primary/20 hover:text-primary" 
+                      : "bg-slate-900 text-white"
+                  )}
+                  onClick={() => toggleAvailable(item.id)}
+                >
+                  {item.available ? "Tạm ngưng phục vụ" : "Mở bán lại ngay"}
+                </Button>
               </CardContent>
             </Card>
           ))}
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center py-20 bg-muted/20 rounded-3xl border-2 border-dashed border-muted">
-          <div className="bg-muted p-4 rounded-full mb-4">
-            <UtensilsCrossed className="size-10 text-muted-foreground/50" />
+        <div className="flex flex-col items-center justify-center py-32 bg-white rounded-[3rem] border-2 border-dashed border-slate-100 shadow-inner">
+          <div className="bg-slate-50 p-6 rounded-[2rem] mb-6 shadow-sm">
+            <UtensilsCrossed className="size-12 text-slate-200" />
           </div>
-          <h3 className="text-lg font-medium">Chưa có món ăn nào</h3>
-          <p className="text-muted-foreground text-sm max-w-[300px] text-center mt-1">
-            Bắt đầu xây dựng thực đơn của bạn bằng cách thêm món ăn đầu tiên.
+          <h3 className="text-2xl font-black text-slate-800">Thực đơn còn trống</h3>
+          <p className="text-slate-400 font-medium max-w-[320px] text-center mt-2 leading-relaxed">
+            Bạn chưa có món ăn nào. Hãy bắt đầu xây dựng menu tâm đắc của mình.
           </p>
-          <Button variant="outline" className="mt-6 rounded-full" onClick={() => { setSearchTerm(""); setModal({ open: true }) }}>
-            Thêm món ngay
+          <Button variant="default" className="mt-8 h-14 px-8 rounded-2xl font-black shadow-xl shadow-primary/20" onClick={() => { setSearchTerm(""); setModal({ open: true }) }}>
+            TẠO MÓN ĂN ĐẦU TIÊN
           </Button>
         </div>
       )}
@@ -342,27 +348,61 @@ export default function MenuPage() {
           onClose={() => setModal({ open: false })}
           tenantSlug={tenantSlug}
           categories={categories}
+          saving={saving}
         />
       )}
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Xác nhận xóa món ăn?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Hành động này sẽ xóa vĩnh viễn món ăn này khỏi thực đơn và không thể hoàn tác. Bạn có chắc chắn không?
-            </AlertDialogDescription>
+      {/* SECURE DELETE MENU ITEM */}
+      <AlertDialog 
+        open={!!deleteTarget} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+            setConfirmDeleteText("");
+          }
+        }}
+      >
+        <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl max-w-md p-8">
+          <AlertDialogHeader className="space-y-4">
+            <div className="flex justify-center">
+              <div className="bg-red-50 size-20 rounded-[2rem] flex items-center justify-center shadow-lg shadow-red-50">
+                <Trash2 className="size-10 text-red-500" />
+              </div>
+            </div>
+            
+            <div className="space-y-2 text-center">
+              <AlertDialogTitle className="text-3xl font-black text-slate-900">Gỡ bỏ món ăn?</AlertDialogTitle>
+              <AlertDialogDescription className="text-base font-medium text-slate-500">
+                Bạn sắp gỡ món <span className="text-red-600 font-bold underline">"{deleteTarget?.name}"</span> khỏi hệ thống. Thao tác này không thể hoàn tác.
+              </AlertDialogDescription>
+            </div>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Hủy bỏ</AlertDialogCancel>
+
+          <div className="mt-8 space-y-4 p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Xác thực hệ thống</label>
+              <p className="text-sm text-slate-600 ml-1">Vui lòng nhập <span className="font-black text-slate-900">"{deleteTarget?.name}"</span> để xóa:</p>
+              <Input
+                placeholder="Nhập tên món ăn..."
+                value={confirmDeleteText}
+                onChange={(e) => setConfirmDeleteText(e.target.value)}
+                className="bg-white border-2 border-slate-200 focus-visible:ring-red-500 focus-visible:border-red-500 text-center font-bold h-14 rounded-2xl"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 mt-8">
             <AlertDialogAction
-              onClick={confirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={executeDelete}
+              disabled={confirmDeleteText !== deleteTarget?.name || saving}
+              className="h-14 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-black shadow-xl shadow-red-100 transition-all disabled:opacity-20"
             >
-              Xóa ngay
+              {saving ? "ĐANG GỠ BỎ..." : "XÁC NHẬN GỠ BỎ"}
             </AlertDialogAction>
-          </AlertDialogFooter>
+            <AlertDialogCancel className="h-14 rounded-2xl border-none bg-transparent hover:bg-slate-100 font-bold text-slate-500 transition-all">
+              Hủy và quay lại
+            </AlertDialogCancel>
+          </div>
         </AlertDialogContent>
       </AlertDialog>
     </div>

@@ -1,35 +1,38 @@
 import { createServerClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
+const MAX_TENANTS_PER_USER = 3;
+
 export async function POST(request: Request) {
   try {
     const { tenantName, tenantSlug } = await request.json();
 
     if (!tenantName || !tenantSlug) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
-
     if (!/^[a-z0-9-]+$/.test(tenantSlug)) {
       return NextResponse.json(
-        { error: "Slug must contain only lowercase letters, numbers, and hyphens" },
+        { error: "Slug chỉ được dùng chữ thường, số, và dấu gạch ngang" },
         { status: 400 }
       );
     }
-
     const supabase = await createServerClient();
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { count } = await supabase
+      .from("tenant_users")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("role", "owner");
 
-    if (userError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if ((count ?? 0) >= MAX_TENANTS_PER_USER) {
+      return NextResponse.json(
+        { error: `Bạn đã đạt giới hạn ${MAX_TENANTS_PER_USER} nhà hàng. Liên hệ để nâng cấp gói.` },
+        { status: 403 }
+      );
     }
 
-    // Create tenant record
+    // Create tenant
     const { data: tenantData, error: tenantError } = await supabase
       .from("tenants")
       .insert({
@@ -47,39 +50,25 @@ export async function POST(request: Request) {
       );
     }
 
-    // Add user to tenant
-    const { error: userTenantError } = await supabase
-      .from("tenant_users")
-      .insert({
-        tenant_id: tenantData.id,
-        user_id: user.id,
-        role: "owner",
-      });
+    // Add user as owner
+    await supabase.from("tenant_users").insert({
+      tenant_id: tenantData.id,
+      user_id: user.id,
+      role: "owner",
+    });
 
-    if (userTenantError) {
-      return NextResponse.json(
-        { error: userTenantError.message || "Failed to add user to tenant" },
-        { status: 400 }
-      );
-    }
-
-    // Create tenant schema and tables
-    const schemaName = `tenant_${tenantSlug.replace(/-/g, "_")}`;
-    // Schema creation will be done on first query
-    // const { error: schemaError } = await supabase.rpc(
-    //   "create_tenant_schema_and_tables",
-    //   { schema_name: schemaName }
-    // );
-
-    // if (schemaError) {
-    //   console.error("Failed to create schema:", schemaError);
-    // }
+    // Assign free plan with 30-day expiry
+    const expires = new Date();
+    expires.setDate(expires.getDate() + 30);
+    await supabase.from("subscriptions").insert({
+      tenant_id: tenantData.id,
+      plan_id: "free",
+      status: "active",
+      expires_at: expires.toISOString(),
+    });
 
     return NextResponse.json(
-      {
-        message: "Tenant created successfully",
-        tenant_id: tenantData.id,
-      },
+      { message: "Tenant created successfully", tenant_id: tenantData.id },
       { status: 201 }
     );
   } catch (error) {

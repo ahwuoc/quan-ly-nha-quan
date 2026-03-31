@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getSupabaseClient } from "@/lib/supabase-client";
 import { useParams } from "next/navigation";
 import {
   Clock,
@@ -8,11 +9,10 @@ import {
   XCircle,
   ChefHat,
   RefreshCw,
-  MoreVertical,
   ShoppingCart,
   MapPin,
-  Calendar,
-  AlertCircle
+  AlertCircle,
+  Search,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -28,7 +28,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+
+// Duy nhất 1 client bên ngoài để tránh nghẽn mạch Realtime
+const supabase = getSupabaseClient();
 
 interface OrderItem {
   id: string;
@@ -43,10 +47,20 @@ interface OrderItem {
 interface Order {
   id: string;
   table_id: string;
+  session_id: string;
   table?: { number: string | number };
-  status: "pending" | "preparing" | "completed" | "cancelled";
+  status: "pending" | "preparing" | "completed" | "cancelled" | "paid";
   created_at: string;
   order_items: OrderItem[];
+}
+
+interface PaymentSession {
+  session_id: string;
+  table_id: string;
+  table_number: string | number;
+  orders: Order[];
+  total: number;
+  paid_at: string; // latest updated_at among orders
 }
 
 export default function OrdersPage() {
@@ -54,18 +68,41 @@ export default function OrdersPage() {
   const tenantSlug = params.tenantSlug as string;
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const [cancelModal, setCancelModal] = useState<{ open: boolean; orderId: string | null }>({
     open: false,
     orderId: null,
   });
 
+  // Fix Hydration mismatch: Đảm bảo chỉ render nút bấm sau khi trang đã tải xong ở trình duyệt
   useEffect(() => {
+    setMounted(true);
     fetchOrders();
-    const interval = setInterval(fetchOrders, 30000);
-    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (!tenantSlug) return;
+
+    console.log("Admin Orders: Bắt đầu lắng nghe đơn hàng mới...");
+    const channel = supabase
+      .channel("admin-orders-stream")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders" },
+        (payload) => {
+          console.log("ADMIN: Đã nhận được cập nhật đơn hàng mới!", payload);
+          fetchOrders();
+        }
+      )
+      .subscribe((status) => {
+        console.log(`ADMIN REALTIME STATUS: ${status}`);
+      });
+
+    return () => { supabase.removeChannel(channel); };
   }, [tenantSlug]);
 
   async function fetchOrders() {
+    setLoading(true);
     try {
       const res = await fetch(`/api/admin/${tenantSlug}/orders`);
       const data = await res.json();
@@ -90,31 +127,64 @@ export default function OrdersPage() {
     }
   }
 
-  function handleCancelRequest(orderId: string) {
-    setCancelModal({ open: true, orderId });
-  }
-
-  function confirmCancel() {
-    if (cancelModal.orderId) {
-      updateStatus(cancelModal.orderId, "cancelled");
-    }
-    setCancelModal({ open: false, orderId: null });
-  }
-
   const statusConfig = {
     pending: { label: "Cần duyệt", color: "bg-red-500", icon: Clock },
     preparing: { label: "Đang bếp", color: "bg-orange-500", icon: ChefHat },
     completed: { label: "Đã xong", color: "bg-emerald-500", icon: CheckCircle2 },
     cancelled: { label: "Đã hủy", color: "bg-slate-500", icon: XCircle },
+    paid: { label: "Đã thanh toán", color: "bg-emerald-700", icon: CheckCircle2 },
   };
 
-  const [activeTab, setActiveTab] = useState<"pending" | "preparing" | "history">("pending");
+  const [activeTab, setActiveTab] = useState<"pending" | "preparing" | "history" | "payment">("pending");
+  const [historyFilter, setHistoryFilter] = useState<"all" | "completed" | "cancelled">("all");
+  const [historySearch, setHistorySearch] = useState("");
+  const [paymentSearch, setPaymentSearch] = useState("");
 
   const pendingOrders = orders.filter(o => o.status === "pending");
   const preparingOrders = orders.filter(o => o.status === "preparing");
-  const historyOrders = orders.filter(o => ["completed", "cancelled"].includes(o.status));
+  const historyOrders = orders.filter(o => {
+    if (!["completed", "cancelled"].includes(o.status)) return false;
+    if (historyFilter !== "all" && o.status !== historyFilter) return false;
+    if (historySearch) {
+      const q = historySearch.toLowerCase();
+      const tableMatch = String(o.table?.number ?? o.table_id).includes(q);
+      const itemMatch = o.order_items.some(i => i.menu_item?.name?.toLowerCase().includes(q));
+      return tableMatch || itemMatch;
+    }
+    return true;
+  });
+
+  // Group paid orders by session_id
+  const paymentSessions: PaymentSession[] = (() => {
+    const paid = orders.filter(o => o.status === "paid");
+    const map: Record<string, PaymentSession> = {};
+    paid.forEach(o => {
+      const key = o.session_id || o.id;
+      if (!map[key]) {
+        map[key] = {
+          session_id: key,
+          table_id: o.table_id,
+          table_number: o.table?.number ?? o.table_id,
+          orders: [],
+          total: 0,
+          paid_at: o.created_at,
+        };
+      }
+      map[key].orders.push(o);
+      map[key].total += o.order_items.reduce((s, i) => s + i.unit_price * i.quantity, 0);
+      if (o.created_at > map[key].paid_at) map[key].paid_at = o.created_at;
+    });
+    return Object.values(map)
+      .filter(s => {
+        if (!paymentSearch) return true;
+        return String(s.table_number).includes(paymentSearch);
+      })
+      .sort((a, b) => b.paid_at.localeCompare(a.paid_at));
+  })();
 
   const currentOrders = activeTab === "pending" ? pendingOrders : activeTab === "preparing" ? preparingOrders : historyOrders;
+
+  if (!mounted) return null; // Quan trọng để tránh Hydration Mismatch
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
@@ -132,149 +202,235 @@ export default function OrdersPage() {
           size="sm"
           onClick={fetchOrders}
           disabled={loading}
-          className="rounded-full bg-background"
+          className="rounded-full bg-background font-black text-[10px] uppercase shadow-sm"
         >
-          <RefreshCw className={cn("size-4 mr-2", loading && "animate-spin")} />
-          Làm mới
+          <RefreshCw className={cn("size-3 mr-2", loading && "animate-spin")} />
+          Làm mới dữ liệu
         </Button>
       </div>
 
       {/* Workflow Tabs */}
-      <div className="flex p-1 bg-muted rounded-2xl w-fit">
-        <Button
-          variant={activeTab === "pending" ? "default" : "ghost"}
-          className={cn("rounded-xl px-6 font-bold", activeTab === "pending" && "shadow-lg shadow-primary/20")}
-          onClick={() => setActiveTab("pending")}
-        >
-          Chờ duyệt ({pendingOrders.length})
-        </Button>
-        <Button
-          variant={activeTab === "preparing" ? "default" : "ghost"}
-          className={cn("rounded-xl px-6 font-bold", activeTab === "preparing" && "shadow-lg shadow-primary/20")}
-          onClick={() => setActiveTab("preparing")}
-        >
-          Nhà bếp ({preparingOrders.length})
-        </Button>
-        <Button
-          variant={activeTab === "history" ? "default" : "ghost"}
-          className={cn("rounded-xl px-6 font-bold", activeTab === "history" && "shadow-lg shadow-primary/20")}
-          onClick={() => setActiveTab("history")}
-        >
-          Lịch sử
-        </Button>
+      <div className="flex p-1.5 bg-muted/60 rounded-[28px] w-fit border shadow-inner">
+        {[
+          { id: "pending", label: "Chờ duyệt", count: pendingOrders.length },
+          { id: "preparing", label: "Trong bếp", count: preparingOrders.length },
+          { id: "history", label: "Lịch sử", count: null },
+          { id: "payment", label: "Thanh toán", count: null },
+        ].map((tab) => (
+          <Button
+            key={tab.id}
+            variant={activeTab === tab.id ? "default" : "ghost"}
+            className={cn(
+              "rounded-[22px] px-8 font-black uppercase text-[11px] tracking-widest h-11 transition-all",
+              activeTab === tab.id ? "shadow-xl shadow-primary/30" : "text-muted-foreground hover:bg-white/50"
+            )}
+            onClick={() => setActiveTab(tab.id as any)}
+          >
+            {tab.label} {tab.count !== null && <span className="ml-2 py-0.5 px-2 bg-white/20 rounded-full">{tab.count}</span>}
+          </Button>
+        ))}
       </div>
 
-      {loading && orders.length === 0 ? (
+      {/* History filters */}
+      {activeTab === "history" && (
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+            <Input
+              placeholder="Tìm bàn hoặc tên món..."
+              value={historySearch}
+              onChange={e => setHistorySearch(e.target.value)}
+              className="pl-11 h-11 rounded-2xl bg-white border-slate-100 font-medium placeholder:text-slate-300"
+            />
+          </div>
+          <div className="flex gap-2">
+            {([
+              { id: "all", label: "Tất cả" },
+              { id: "completed", label: "Đã xong" },
+              { id: "cancelled", label: "Đã hủy" },
+            ] as const).map(f => (
+              <Button
+                key={f.id}
+                size="sm"
+                variant={historyFilter === f.id ? "default" : "outline"}
+                className="rounded-2xl font-black text-[11px] uppercase tracking-widest h-11 border-slate-100"
+                onClick={() => setHistoryFilter(f.id)}
+              >
+                {f.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Payment search */}
+      {activeTab === "payment" && (
+        <div className="relative max-w-sm">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+          <Input
+            placeholder="Tìm theo số bàn..."
+            value={paymentSearch}
+            onChange={e => setPaymentSearch(e.target.value)}
+            className="pl-11 h-11 rounded-2xl bg-white border-slate-100 font-medium placeholder:text-slate-300"
+          />
+        </div>
+      )}
+
+      {/* Payment sessions list */}
+      {activeTab === "payment" ? (
+        paymentSessions.length > 0 ? (
+          <div className="space-y-4">
+            {paymentSessions.map(session => (
+              <div key={session.session_id} className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
+                {/* Session header */}
+                <div className="flex items-center justify-between px-8 py-5 border-b border-slate-50">
+                  <div className="flex items-center gap-4">
+                    <div className="size-10 bg-emerald-50 rounded-2xl flex items-center justify-center">
+                      <CheckCircle2 className="size-5 text-emerald-500" />
+                    </div>
+                    <div>
+                      <p className="font-black text-slate-900 tracking-tight">Bàn {session.table_number}</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        {new Date(session.paid_at).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-2xl font-black text-emerald-600 tracking-tighter">{session.total.toLocaleString()}đ</p>
+                </div>
+                {/* Items breakdown */}
+                <div className="px-8 py-4 space-y-2">
+                  {(() => {
+                    const grouped: Record<string, { name: string; quantity: number; unit_price: number }> = {};
+                    session.orders.forEach(o => o.order_items.forEach(it => {
+                      const k = it.menu_item?.name || "Món đã ngưng";
+                      if (!grouped[k]) grouped[k] = { name: k, quantity: 0, unit_price: it.unit_price };
+                      grouped[k].quantity += it.quantity;
+                    }));
+                    return Object.values(grouped).map((it, i) => (
+                      <div key={i} className="flex justify-between items-center text-sm">
+                        <div className="flex items-center gap-3">
+                          <span className="size-6 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center text-[10px] font-black">{it.quantity}</span>
+                          <span className="font-medium text-slate-700">{it.name}</span>
+                        </div>
+                        <span className="font-black text-slate-600 text-xs">{(it.quantity * it.unit_price).toLocaleString()}đ</span>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-40 border-4 border-dashed rounded-[60px] text-center max-w-xl mx-auto border-muted-foreground/10 opacity-30">
+            <CheckCircle2 className="size-16 mb-6" />
+            <h3 className="text-2xl font-black uppercase tracking-tighter italic">Chưa có thanh toán nào</h3>
+          </div>
+        )
+      ) : loading && orders.length === 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3].map(i => (
-            <div key={i} className="h-64 rounded-2xl bg-muted animate-pulse" />
+            <div key={i} className="h-64 rounded-[40px] bg-muted/40 animate-pulse" />
           ))}
         </div>
       ) : currentOrders.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {currentOrders.map((order) => {
             const Config = statusConfig[order.status] || statusConfig.pending;
             const total = order.order_items.reduce((acc, item) => acc + (item.unit_price * item.quantity), 0);
 
             return (
-              <Card key={order.id} className="overflow-hidden rounded-[32px] border-primary/5 shadow-sm hover:shadow-xl transition-all group">
-                <CardHeader className="pb-3 bg-muted/40">
+              <Card key={order.id} className={cn(
+                "overflow-hidden rounded-[40px] border-none transition-all group",
+                activeTab === "history"
+                  ? "shadow-sm bg-slate-50/80 hover:bg-white hover:shadow-md"
+                  : "shadow-2xl shadow-slate-200/50 hover:scale-[1.02]"
+              )}>
+                <CardHeader className="pb-4 bg-muted/30">
                   <div className="flex items-center justify-between mb-2">
-                    <Badge variant="secondary" className="rounded-full px-3 py-1 bg-white border shadow-sm">
+                    <Badge variant="outline" className="rounded-full px-4 py-1.5 bg-white border-primary/10 shadow-sm font-black text-primary italic tracking-tight">
                       <MapPin className="size-3 mr-1.5 text-primary" />
-                      {order.table?.number ? `Bàn ${order.table?.number}` : `ID: ${order.table_id}`}
+                      {order.table?.number ? `BÀN SỐ ${order.table?.number}` : `BÀN ID: ${order.table_id}`}
                     </Badge>
-                    <Badge className={cn("text-white border-none rounded-full", Config.color)}>
-                      <Config.icon className="size-3 mr-1.5" />
-                      {Config.label}
-                    </Badge>
+                    <div className={cn("size-3 rounded-full animate-pulse", Config.color)} />
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
-                    <Clock className="size-3" />
-                    {new Date(order.created_at).toLocaleTimeString("vi-VN")}
+                  <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-black uppercase tracking-tighter">
+                        <Clock className="size-3" />
+                        {new Date(order.created_at).toLocaleTimeString("vi-VN")}
+                     </div>
+                     <Badge className={cn("text-white border-none rounded-full font-black text-[9px] px-3 uppercase tracking-widest", Config.color)}>
+                        {Config.label}
+                     </Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="p-6 space-y-4">
-                  <div className="space-y-4">
+                <CardContent className="p-8 space-y-6">
+                  <div className="space-y-5">
                     {order.order_items.map((item) => (
-                      <div key={item.id} className="flex items-center gap-4">
-                        <div className="size-12 rounded-2xl overflow-hidden bg-muted flex-shrink-0 border">
-                          {item.menu_item.image_url ? (
-                            <img src={item.menu_item.image_url} alt="" className="size-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                      <div key={item.id} className="flex items-center gap-5">
+                        <div className="size-14 rounded-3xl overflow-hidden bg-muted flex-shrink-0 border-2 border-white shadow-sm">
+                          {item.menu_item?.image_url ? (
+                            <img src={item.menu_item.image_url} alt="" className="size-full object-cover" />
                           ) : (
-                            <div className="size-full flex items-center justify-center text-muted-foreground">
+                            <div className="size-full flex items-center justify-center bg-slate-50 opacity-20">
                               <ChefHat className="size-6" />
                             </div>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-black truncate">{item.menu_item.name}</p>
-                          <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Số lượng: {item.quantity}</p>
+                          <p className="text-sm font-black truncate leading-none mb-1.5 tracking-tight">{item.menu_item?.name || "Món đã bị xóa"}</p>
+                          <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">SL: {item.quantity}</p>
                         </div>
-                        <div className="text-sm font-black text-primary">
+                        <div className="text-sm font-black text-slate-900 tracking-tighter italic">
                           {(item.unit_price * item.quantity).toLocaleString()}đ
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  <Separator className="bg-primary/5" />
-
-                  <div className="flex items-center justify-between pt-1">
-                    <p className="text-xs font-black uppercase tracking-widest text-muted-foreground/60">Thành tiền</p>
-                    <p className="text-xl font-black text-primary tracking-tighter">
-                      {total.toLocaleString()}<span className="text-xs ml-0.5">đ</span>
-                    </p>
+                  <div className="pt-2">
+                    <div className="flex items-center justify-between h-14 px-6 bg-primary/[0.03] rounded-3xl border border-primary/5">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Tổng Bill</p>
+                      <p className="text-2xl font-black text-primary tracking-tighter italic">
+                        {total.toLocaleString()}<span className="text-xs ml-0.5">đ</span>
+                      </p>
+                    </div>
                   </div>
                 </CardContent>
-                <CardFooter className="p-6 pt-0 flex gap-2">
+                <CardFooter className="p-8 pt-0 flex gap-3">
                   {order.status === "pending" && (
                     <>
-                      <Button 
-                        className="flex-1 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-black shadow-lg shadow-emerald-500/20 h-12" 
-                        size="sm"
+                      <Button
+                        className="flex-1 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-black shadow-xl shadow-emerald-500/30 h-14 text-xs uppercase tracking-widest"
                         onClick={() => updateStatus(order.id, "preparing")}
                       >
-                        <CheckCircle2 className="size-4 mr-2" /> DUYỆT ĐƠN
+                        <CheckCircle2 className="size-4 mr-2" /> CHẤP NHẬN
                       </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        className="rounded-2xl border-destructive/20 text-destructive hover:bg-destructive hover:text-white font-black h-12 px-4 shadow-sm"
-                        onClick={() => handleCancelRequest(order.id)}
+                      <Button
+                        variant="ghost"
+                        className="rounded-2xl text-destructive hover:bg-destructive/10 font-black h-14 px-4 text-xs tracking-tighter"
+                        onClick={() => setCancelModal({ open: true, orderId: order.id })}
                       >
-                        <XCircle className="size-4 mr-1.5" /> TỪ CHỐI
+                        HỦY
                       </Button>
                     </>
                   )}
                   {order.status === "preparing" && (
-                    <>
-                      <Button 
-                        className="flex-1 rounded-2xl bg-primary hover:bg-primary/90 text-white font-black shadow-lg shadow-primary/20 h-12" 
-                        size="sm"
+                     <Button
+                        className="flex-1 rounded-2xl bg-slate-900 hover:bg-black text-white font-black shadow-xl shadow-slate-900/30 h-14 text-xs uppercase tracking-widest"
                         onClick={() => updateStatus(order.id, "completed")}
                       >
-                        HOÀN TẤT MÓN
+                        PHỤC VỤ XONG
                       </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        className="rounded-2xl text-muted-foreground hover:bg-muted font-bold h-12 shadow-sm"
-                        onClick={() => handleCancelRequest(order.id)}
-                      >
-                        HỦY ĐƠN
-                      </Button>
-                    </>
                   )}
                   {order.status === "completed" && (
-                     <div className="w-full text-center text-[10px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 py-3 rounded-2xl flex items-center justify-center gap-2 border border-emerald-100">
-                       <CheckCircle2 className="size-4" /> Đã hoàn thành & Phục vụ
-                     </div>
+                    <div className="w-full text-center text-[10px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 py-4 rounded-3xl border border-emerald-100 flex items-center justify-center gap-2">
+                       <CheckCircle2 className="size-4" /> ĐÃ GIAO MÓN TẬN BÀN
+                    </div>
                   )}
                   {order.status === "cancelled" && (
-                     <div className="w-full text-center text-[10px] font-black uppercase tracking-widest text-slate-600 bg-slate-100 py-3 rounded-2xl flex items-center justify-center gap-2 border border-slate-200">
-                       <XCircle className="size-4" /> Đơn đã bị từ chối/hủy
-                     </div>
+                    <div className="w-full text-center text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 py-4 rounded-3xl border border-dotted flex items-center justify-center gap-2">
+                       <XCircle className="size-4" /> ĐƠN ĐÃ BỊ HỦY BỎ
+                    </div>
                   )}
                 </CardFooter>
               </Card>
@@ -282,33 +438,30 @@ export default function OrdersPage() {
           })}
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center py-32 bg-muted/30 rounded-[40px] border-4 border-dashed border-muted text-center max-w-2xl mx-auto">
-          <div className="bg-muted p-6 rounded-full mb-6">
-            <AlertCircle className="size-12 text-muted-foreground/30" />
-          </div>
-          <h3 className="text-2xl font-black text-muted-foreground/50 tracking-tight uppercase">Trống lịch</h3>
-          <p className="text-muted-foreground/60 text-sm mt-2 px-20 font-medium">
-            {activeTab === "pending" ? "Hiện tại không có đơn hàng nào đang chờ bạn duyệt. Tuyệt vời!" : activeTab === "preparing" ? "Nhà bếp đang rảnh rỗi. Hãy sẵn sàng cho những đơn tiếp theo." : "Lịch sử đơn hàng hiện đang trống."}
-          </p>
+        <div className="flex flex-col items-center justify-center py-40 border-4 border-dashed rounded-[60px] text-center max-w-xl mx-auto border-muted-foreground/10 opacity-30">
+          <AlertCircle className="size-16 mb-6" />
+          <h3 className="text-2xl font-black uppercase tracking-tighter italic">Mọi thứ đã sẵn sàng</h3>
+          <p className="text-sm mt-1 font-medium italic underline underline-offset-4">Chưa có đơn hàng nào trong mục này</p>
         </div>
       )}
 
-      {/* Confirmation Dialog for Refusal */}
+      {/* Confirmation Modal */}
       <AlertDialog open={cancelModal.open} onOpenChange={(open) => setCancelModal({ ...cancelModal, open })}>
-        <AlertDialogContent className="rounded-[32px] border-none shadow-2xl">
+        <AlertDialogContent className="rounded-[40px] border-none p-10">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-black text-destructive uppercase tracking-tight">Xác nhận từ chối đơn hàng?</AlertDialogTitle>
-            <AlertDialogDescription className="text-muted-foreground font-medium">
-              Hành động này không thể hoàn tác. Đơn hàng sẽ bị hủy và chuyển vào mục lịch sử. Bạn có chắc chắn muốn tiếp tục?
-            </AlertDialogDescription>
+            <AlertDialogTitle className="text-2xl font-black uppercase tracking-tight italic">Hủy đơn hàng này?</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground font-medium pt-2"> Thao tác này sẽ chuyển đơn hàng vào mục đã hủy. Bạn có chắc chắn không? </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel className="rounded-2xl font-bold border-none bg-muted hover:bg-muted/80 h-12"> Quay lại </AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={confirmCancel}
-              className="rounded-2xl font-black bg-destructive hover:bg-destructive/90 text-white h-12 shadow-lg shadow-destructive/20"
-            > 
-              XÁC NHẬN TỪ CHỐI 
+          <AlertDialogFooter className="pt-6">
+            <AlertDialogCancel className="rounded-2xl font-bold h-12 border-none bg-muted">Quay lại</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-2xl font-black bg-destructive hover:bg-destructive/90 text-white h-12 px-8"
+              onClick={() => {
+                if (cancelModal.orderId) updateStatus(cancelModal.orderId, "cancelled");
+                setCancelModal({ open: false, orderId: null });
+              }}
+            >
+              CÓ, HỦY ĐƠN
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
