@@ -1,13 +1,24 @@
-export type Category = "do-nhau" | "bia" | "nuoc-ngot" | "khac";
+export type CategoryId = "do-nhau" | "bia" | "nuoc-ngot" | "khac";
 
-export const CATEGORY_LABELS: Record<Category, string> = {
+/** @deprecated Use CategoryId */
+export type Category = CategoryId;
+
+export interface CategoryRecord {
+  id: CategoryId;
+  name: string;
+  icon: string;
+  imageUrl?: string;
+  sortOrder: number;
+}
+
+export const CATEGORY_LABELS: Record<CategoryId, string> = {
   "do-nhau": "Đồ nhậu",
   bia: "Bia",
   "nuoc-ngot": "Nước ngọt",
   khac: "Khác",
 };
 
-export const CATEGORY_ICONS: Record<Category, string> = {
+export const CATEGORY_ICONS: Record<CategoryId, string> = {
   "do-nhau": "🍖",
   bia: "🍺",
   "nuoc-ngot": "🥤",
@@ -18,7 +29,9 @@ export interface MenuItem {
   id: string;
   name: string;
   price: number;
-  category: Category;
+  categoryId: CategoryId;
+  /** @deprecated Use categoryId */
+  category?: CategoryId;
   image?: string;
   description?: string;
   available: boolean;

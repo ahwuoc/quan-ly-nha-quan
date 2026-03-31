@@ -1,0 +1,58 @@
+nohup: ignoring input
+$ next dev
+▲ Next.js 16.2.1 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.1.9:3000
+- Environments: .env.local, .env
+✓ Ready in 268ms
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+
+ GET /cuahang123/table/temp-1774918408701 200 in 3.0s (next.js: 2.4s, proxy.ts: 369ms, application-code: 275ms)
+ GET /admin/cuahang123/menu 200 in 2.9s (next.js: 2.5s, proxy.ts: 284ms, application-code: 116ms)
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <ErrorBoundary errorComponent={undefined} errorStyles={undefined} errorScripts={undefined}>
+      <LoadingBoundary name="menu/" loading={null}>
+        <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>
+          <RedirectBoundary>
+            <RedirectErrorBoundary router={{...}}>
+              <InnerLayoutRouter url="/admin/cua..." tree={[...]} params={{...}} cacheNode={{rsc:{...}, ...}} ...>
+                <SegmentViewNode type="page" pagePath="(admin)/ad...">
+                  <SegmentTrieNode>
+                  <ClientPageRoot Component={function MenuPage} serverProvidedParams={{...}}>
+                    <MenuPage params={Promise} searchParams={Promise}>
+                      <div className="p-6 max-w-...">
+                        <div className="flex flex-...">
+                          <div>
+                          <div className="flex items...">
+                            <Button variant="outline" size="icon" onClick={function fetchItems} disabled={true} ...>
+                              <button
+                                data-slot="button"
+                                data-variant="outline"
+                                data-size="icon"
+                                className={"group/button inline-flex shrink-0 items-center justify-center border bg-c..."}
+                                onClick={function fetchItems}
++                               disabled={true}
+-                               disabled={null}
+                              >
+                            ...
+                        ...
+                ...
+              ...
+ 
+ GET /api/admin/cuahang123/categories 200 in 1339ms (next.js: 917ms, proxy.ts: 127ms, application-code: 295ms)
+ GET /api/admin/cuahang123/menu-items 200 in 1390ms (next.js: 860ms, proxy.ts: 131ms, application-code: 398ms)
+ GET /api/admin/cuahang123/menu-items 200 in 429ms (next.js: 30ms, proxy.ts: 123ms, application-code: 275ms)
+[?25h
+error: script "dev" exited with code 143
