@@ -227,73 +227,73 @@ export default function TablesPage() {
   const filtered = tables.filter(t => t.number.toString().includes(searchTerm));
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-700">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-1.5">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 md:space-y-8 animate-in fade-in duration-700">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6">
+        <div className="space-y-1">
           <div className="flex items-center gap-2 text-primary">
-            <div className="bg-primary/10 p-2 rounded-xl text-primary">
-              <Armchair className="size-6" />
+            <div className="bg-primary/10 p-1.5 md:p-2 rounded-xl text-primary">
+              <Armchair className="size-5 md:size-6" />
             </div>
-            <h1 className="text-3xl font-black tracking-tight text-slate-900">Sơ đồ nhà hàng</h1>
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900">Sơ đồ nhà hàng</h1>
           </div>
-          <p className="text-slate-500 font-medium ml-1">Quản lý trạng thái bàn ăn và QR gọi món theo thời gian thực.</p>
+          <p className="text-slate-500 font-medium text-xs md:text-sm ml-1">Quản lý trạng thái bàn ăn và QR gọi món.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3">
           <Button
             variant="outline"
             size="icon"
             onClick={fetchData}
-            className="rounded-2xl h-12 w-12 bg-white border-slate-100 hover:bg-slate-50 shadow-sm"
+            className="rounded-xl md:rounded-2xl h-10 w-10 md:h-12 md:w-12 bg-white border-slate-100 hover:bg-slate-50 shadow-sm"
           >
-            <RefreshCw className={cn("size-5 text-slate-400", loading && "animate-spin")} />
+            <RefreshCw className={cn("size-4 md:size-5 text-slate-400", loading && "animate-spin")} />
           </Button>
           <Button
             onClick={() => setModal({ open: true })}
-            className="rounded-2xl h-12 px-6 font-black shadow-lg shadow-primary/20 hover:scale-105 transition-all"
+            className="rounded-xl md:rounded-2xl h-10 md:h-12 px-4 md:px-6 font-black text-xs md:text-sm shadow-lg shadow-primary/20 hover:scale-105 transition-all"
           >
-            <Plus className="mr-2 size-5" /> THÊM BÀN MỚI
+            <Plus className="mr-1.5 md:mr-2 size-4 md:size-5" /> THÊM BÀN
           </Button>
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden">
+      <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col gap-4 md:gap-0 md:flex-row items-start md:items-center justify-between overflow-hidden">
         <div className="relative w-full md:w-96">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+          <Search className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
           <Input
             placeholder="Tìm số bàn..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-11 h-12 bg-slate-50 border-none rounded-2xl font-bold placeholder:text-slate-300 focus-visible:ring-primary/20"
+            className="pl-10 md:pl-11 h-10 md:h-12 bg-slate-50 border-none rounded-xl md:rounded-2xl font-bold placeholder:text-slate-300 focus-visible:ring-primary/20 text-sm"
           />
         </div>
-        <div className="flex items-center gap-8 text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] px-4">
-          <div className="flex items-center gap-2.5">
-            <div className="size-3 rounded-full bg-slate-200" />
-            <span>{tableStats.available} Bàn trống</span>
+        <div className="flex flex-wrap items-center gap-3 md:gap-8 text-[9px] md:text-[10px] font-black uppercase text-slate-400 tracking-[0.15em] md:tracking-[0.2em]">
+          <div className="flex items-center gap-2">
+            <div className="size-2.5 md:size-3 rounded-full bg-slate-200" />
+            <span>{tableStats.available} Trống</span>
           </div>
-          <div className="flex items-center gap-2.5">
-            <div className="size-3 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-            <span>{tableStats.occupied} Đang phục vụ</span>
+          <div className="flex items-center gap-2">
+            <div className="size-2.5 md:size-3 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+            <span>{tableStats.occupied} Phục vụ</span>
           </div>
-          <div className="flex items-center gap-2.5">
-            <div className="size-3 rounded-full bg-blue-500 animate-bounce shadow-[0_0_8px_rgba(59,130,246,0.4)]" />
-            <span className="text-blue-600">{tableStats.browsing} Khách lướt menu</span>
+          <div className="flex items-center gap-2">
+            <div className="size-2.5 md:size-3 rounded-full bg-blue-500 animate-bounce shadow-[0_0_8px_rgba(59,130,246,0.4)]" />
+            <span className="text-blue-600">{tableStats.browsing} Lướt</span>
           </div>
           {tableStats.paymentRequested > 0 && (
-            <div className="flex items-center gap-2.5">
-              <div className="size-3 rounded-full bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.4)]" />
-              <span className="text-amber-600">{tableStats.paymentRequested} Yêu cầu thanh toán</span>
+            <div className="flex items-center gap-2">
+              <div className="size-2.5 md:size-3 rounded-full bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.4)]" />
+              <span className="text-amber-600">{tableStats.paymentRequested} Bill</span>
             </div>
           )}
         </div>
       </div>
 
       {loading && tables.length === 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map(i => <div key={i} className="h-[340px] rounded-[2.5rem] bg-slate-50 animate-pulse" />)}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-8">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map(i => <div key={i} className="h-[280px] md:h-[340px] rounded-2xl md:rounded-[2.5rem] bg-slate-50 animate-pulse" />)}
         </div>
       ) : filtered.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-8">
           {filtered.map((table) => (
             <Card key={table.id} className={cn(
               "group relative overflow-hidden rounded-[2.5rem] transition-all duration-500 hover:shadow-2xl border-none bg-white",
