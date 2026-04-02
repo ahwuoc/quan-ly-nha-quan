@@ -210,7 +210,10 @@ export default function TableMenu() {
       alert("Vui lòng nhập mã PIN 4 số!");
       return;
     }
-    const sid = table?.session_id || (typeof window !== "undefined" ? window.crypto.randomUUID() : "00000000-0000-0000-0000-000000000000");
+    const sid = (document.cookie.split("; ").find((row) => row.startsWith("table_session_id="))?.split("=")[1]) ||
+      localStorage.getItem(`session_${tableId}`) ||
+      (typeof window !== "undefined" ? window.crypto.randomUUID() : "00000000-0000-0000-0000-000000000000");
+
     setIsSubmitting(true);
     try {
       const { data: res, error: rpcErr } = await (supabase.rpc as any)("claim_table_session", {
