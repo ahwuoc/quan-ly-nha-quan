@@ -347,40 +347,14 @@ export default function TablesPage() {
                   </div>
                 </div>
 
-                {table.status === "occupied" && (
-                  <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100/50 space-y-1 animate-in zoom-in-95 duration-300">
-                    <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest leading-none opacity-50">Tổng hóa đơn tạm tính</p>
-                    <p className="text-2xl font-black text-emerald-600 tracking-tighter">
-                      {(table.current_total || 0).toLocaleString("vi-VN")}<span className="text-sm ml-0.5">đ</span>
-                    </p>
-                  </div>
-                )}
-
-                <div className={cn(
-                  "grid gap-3",
-                  table.status === "occupied" ? "grid-cols-2" : "grid-cols-1"
-                )}>
-                  {table.status === "occupied" && (
-                    <Button
-                      className="rounded-2xl h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-black shadow-lg shadow-emerald-200 transition-all active:scale-95"
-                      onClick={() => setCheckoutModal({ open: true, item: table })}
-                      disabled={saving}
-                    >
-                      BILL
-                    </Button>
-                  )}
                   <Button
                     variant="outline"
-                    className={cn(
-                      "rounded-2xl h-12 border-slate-100 font-bold hover:bg-slate-50 hover:text-primary transition-all",
-                      table.status !== "occupied" && "w-full"
-                    )}
+                    className="w-full rounded-2xl h-12 border-slate-100 font-bold hover:bg-slate-50 hover:text-primary transition-all"
                     onClick={() => router.push(`/admin/${tenantSlug}/tables/${table.id}`)}
                     disabled={saving}
                   >
-                    <Settings className="size-4 mr-2" /> Quản lý
+                    <Settings className="size-4 mr-2" /> Quản lý bàn
                   </Button>
-                </div>
 
                 <div className="flex gap-2 items-center pt-2">
                   <Button variant="ghost" className="flex-1 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-primary hover:bg-primary/5 rounded-xl h-10" asChild>
