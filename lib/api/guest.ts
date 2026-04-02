@@ -2,6 +2,7 @@ import HTTP from '../http';
 
 export type GuestCreateOrderPayload = {
   table_id: string;
+  customer_name?: string;
   items: Array<{
     menu_item_id: string;
     quantity: number;
@@ -20,14 +21,11 @@ export const guestApi = {
       body: payload,
     });
   },
-
   requestStaff: (tenantSlug: string, payload: GuestRequestStaffPayload) => {
     return HTTP.POST<{ success: boolean }>(`/api/tenants/${tenantSlug}/requests`, {
       body: payload,
     });
   },
-
-  // Request payment for a table (deprecated/variant)
   requestPayment: (tenantSlug: string, tableId: string) => {
     return HTTP.POST<{ success: boolean }>(
       `/api/tenants/${tenantSlug}/tables/${tableId}/payment-request`

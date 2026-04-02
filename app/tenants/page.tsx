@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Store, LogOut, Plus, ChevronRight, LayoutDashboard, User, Trash2, ShieldAlert, AlertTriangle, Crown, Check, Zap } from "lucide-react";
+import { Store, LogOut, Plus, ChevronRight, LayoutDashboard, User, Trash2, ShieldAlert, AlertTriangle, Crown, Check, Zap, MessageCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { tenantsApi } from "@/lib/api";
@@ -54,19 +54,28 @@ function TenantsContent() {
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
 
   useEffect(() => {
-    const lastPath = getCookie("last_admin_path");
     const isBack = searchParams.get("back") === "true";
+    const lastPath = getCookie("last_admin_path");
 
     if (isBack) {
       deleteCookie("last_admin_path");
       deleteCookie("last_tenant_slug");
+      if (typeof window !== "undefined") {
+        window.history.replaceState({}, "", "/tenants");
+      }
+      fetchTenants();
     } else if (lastPath && lastPath.startsWith("/admin/")) {
-      router.push(lastPath);
-      return;
+      // Small verification to avoid loop: only redirect if we have a valid slug session
+      const lastSlug = getCookie("last_tenant_slug");
+      if (lastSlug) {
+        router.replace(lastPath);
+        return;
+      }
+      fetchTenants();
+    } else {
+      fetchTenants();
     }
-
-    fetchTenants();
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   async function fetchTenants() {
     try {
@@ -86,7 +95,7 @@ function TenantsContent() {
     try {
       const result = await tenantsApi.getArchivedTenants();
       setArchivedTenants(result.payload);
-    } catch {}
+    } catch { }
 
     // Fetch subscription info
     try {
@@ -94,7 +103,7 @@ function TenantsContent() {
       const data = result.payload;
       if (data.plans) setPlans(data.plans as any);
       if (data.subscriptions) setSubscriptions(data.subscriptions as any);
-    } catch {}
+    } catch { }
   }
 
   function selectTenant(tenantSlug: string) {
@@ -177,7 +186,7 @@ function TenantsContent() {
 
           <div className="flex flex-wrap items-center gap-2 md:gap-3">
             <Button onClick={() => router.push("/tenants/create")} className="h-10 md:h-12 px-4 md:px-6 rounded-xl md:rounded-2xl shadow-lg shadow-primary/20 font-bold text-xs md:text-sm">
-              <Plus className="mr-1.5 md:mr-2 size-3 md:size-4" /> 
+              <Plus className="mr-1.5 md:mr-2 size-3 md:size-4" />
               <span className="hidden sm:inline">Đăng ký nhà hàng mới</span>
               <span className="sm:hidden">Đăng ký mới</span>
             </Button>
@@ -290,10 +299,18 @@ function TenantsContent() {
           </div>
         )}
 
-        <footer className="text-center pt-6 md:pt-8">
-          <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest">
+        <footer className="text-center pt-6 md:pt-12 space-y-2">
+          <p className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-[0.3em]">
             © 2026 Quản Lý Nhà Quán • Version 2.0 Premium
           </p>
+          <div className="flex items-center justify-center gap-4 text-slate-400">
+            <a href="https://zalo.me/0862267487" target="_blank" className="flex items-center gap-1.5 text-[10px] font-bold hover:text-primary transition-colors">
+              <MessageCircle size={14} className="text-blue-500" /> Zalo: 0862267487
+            </a>
+            <a href="mailto:delb1k98@gmail.com" className="flex items-center gap-1.5 text-[10px] font-bold hover:text-primary transition-colors">
+              <User size={14} /> Hỗ trợ kỹ thuật
+            </a>
+          </div>
         </footer>
 
         {/* Plans section */}
@@ -392,9 +409,9 @@ function TenantsContent() {
                       )}
                       variant={isCurrent ? "ghost" : "default"}
                       disabled={isCurrent || isFree}
-                      onClick={() => window.open("mailto:delb1k98@gmail.com?subject=Nâng cấp gói " + plan.name, "_blank")}
+                      onClick={() => window.open(`https://zalo.me/0862267487?text=Tôi muốn nâng cấp gói ${plan.name}`, "_blank")}
                     >
-                      {isCurrent ? "Đang sử dụng" : isFree ? "Mặc định" : <><Zap className="size-3 md:size-3.5 mr-1" /> Liên hệ nâng cấp</>}
+                      {isCurrent ? "Đang sử dụng" : isFree ? "Mặc định" : <><Zap className="size-3 md:size-3.5 mr-1" /> Nâng cấp (Zalo)</>}
                     </Button>
                   </div>
                 );
@@ -477,7 +494,23 @@ function TenantsContent() {
           </div>
         </AlertDialogContent>
       </AlertDialog>
+
+      <div className="fixed bottom-6 right-6 z-[60] group">
+        <a
+          href="https://zalo.me/0862267487"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="relative flex items-center justify-center size-14 md:size-16 bg-[#0068ff] text-white rounded-full shadow-[0_8px_30px_rgb(0,104,255,0.4)] transition-all duration-500 hover:scale-110 active:scale-95 group-hover:rotate-[360deg]"
+        >
+          <span className="absolute inset-0 rounded-full bg-[#0068ff] animate-ping opacity-20 group-hover:opacity-0" />
+
+          <MessageCircle className="size-7 md:size-8 fill-white" />
+
+          <div className="absolute right-full mr-4 px-4 py-2 bg-white rounded-2xl shadow-xl border border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+            <p className="text-sm font-black text-[#0068ff] italic">Chat Zalo hỗ trợ: 0862267487</p>
+          </div>
+        </a>
+      </div>
     </div>
   );
 }
-

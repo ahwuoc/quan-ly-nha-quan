@@ -52,9 +52,7 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
-/**
- * Handles Table Session Claiming (Session Lock)
- */
+
 async function handleTableSessionLock(
   request: NextRequest,
   response: NextResponse,
@@ -62,33 +60,10 @@ async function handleTableSessionLock(
   tenantSlug: string,
   tableId: string
 ) {
-  let tableSessionId = request.cookies.get("table_session_id")?.value;
-  if (!tableSessionId) {
-    tableSessionId = crypto.randomUUID();
-    response.cookies.set("table_session_id", tableSessionId, {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    });
-  }
-
-  const { data: isClaimed, error } = await supabase.rpc("claim_table_session", {
-    p_table_id: tableId,
-    p_session_id: tableSessionId,
-  });
-
-  if (error || !isClaimed) {
-    const redirectUrl = new URL(`/${tenantSlug}/table/${tableId}/occupied`, request.url);
-    const redirectResponse = NextResponse.redirect(redirectUrl);
-    syncCookies(response, redirectResponse);
-    return redirectResponse;
-  }
-
   return null;
 }
 
-/**
- * Cookie Sync Utility
- */
+
 function syncCookies(sourceResponse: NextResponse, targetResponse: NextResponse) {
   sourceResponse.cookies.getAll().forEach((cookie) => {
     targetResponse.cookies.set(cookie.name, cookie.value, {

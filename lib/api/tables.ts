@@ -20,7 +20,7 @@ export type CreateTablePayload = {
   status?: 'available' | 'occupied';
 };
 
-export type UpdateTablePayload = Partial<CreateTablePayload>;
+export type UpdateTablePayload = Partial<CreateTablePayload> & { id: string };
 
 export type CheckoutPayload = {
   tableId: string;

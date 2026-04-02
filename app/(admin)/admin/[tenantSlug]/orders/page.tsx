@@ -15,6 +15,11 @@ import {
   MapPin,
   AlertCircle,
   Search,
+  User,
+  Hash,
+  Hourglass,
+  Settings,
+  Save
 } from "lucide-react";
 import {
   AlertDialog,
@@ -26,14 +31,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-// Duy nhất 1 client bên ngoài để tránh nghẽn mạch Realtime
 const supabase = getSupabaseClient();
 
 interface PaymentSession {
@@ -42,7 +51,7 @@ interface PaymentSession {
   table_number: string | number;
   orders: Order[];
   total: number;
-  paid_at: string; // latest updated_at among orders
+  paid_at: string;
 }
 
 export default function OrdersPage() {
@@ -51,16 +60,33 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const [tenantConfig, setTenantConfig] = useState<any>(null);
+  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [showSettings, setShowSettings] = useState(false);
+  const [newWindowSeconds, setNewWindowSeconds] = useState<number>(120);
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+
   const [cancelModal, setCancelModal] = useState<{ open: boolean; orderId: string | null }>({
     open: false,
     orderId: null,
   });
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const fetchOrders = useCallback(async function () {
     setLoading(true);
     try {
       const result = await ordersApi.getOrders(tenantSlug);
       if (Array.isArray(result.payload)) setOrders(result.payload);
+
+      const { data: tData } = (await supabase.from("tenants").select("*").eq("slug", tenantSlug).maybeSingle()) as { data: any };
+      if (tData) {
+        setTenantConfig(tData);
+        setNewWindowSeconds(tData.order_cancel_window || 120);
+      }
     } catch (error) {
       console.error("Failed to fetch orders:", error);
     } finally {
@@ -68,7 +94,6 @@ export default function OrdersPage() {
     }
   }, [tenantSlug]);
 
-  // Fix Hydration mismatch: Đảm bảo chỉ render nút bấm sau khi trang đã tải xong ở trình duyệt
   useEffect(() => {
     setMounted(true);
     fetchOrders();
@@ -76,22 +101,11 @@ export default function OrdersPage() {
 
   useEffect(() => {
     if (!tenantSlug) return;
-
-    console.log("Admin Orders: Bắt đầu lắng nghe đơn hàng mới...");
     const channel = supabase
       .channel("admin-orders-stream")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "orders" },
-        (payload) => {
-          console.log("ADMIN: Đã nhận được cập nhật đơn hàng mới!", payload);
-          fetchOrders();
-        }
-      )
-      .subscribe((status) => {
-        console.log(`ADMIN REALTIME STATUS: ${status}`);
-      });
-
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => { fetchOrders(); })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "tenants" }, () => { fetchOrders(); })
+      .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [tenantSlug, fetchOrders]);
 
@@ -104,8 +118,26 @@ export default function OrdersPage() {
     }
   }
 
+  async function handleSaveConfig() {
+    if (!tenantConfig?.id) return;
+    setIsSavingConfig(true);
+    try {
+      const { error } = await (supabase as any).from("tenants")
+        .update({ order_cancel_window: newWindowSeconds })
+        .eq("id", tenantConfig.id);
+
+      if (error) throw error;
+      setShowSettings(false);
+      await fetchOrders();
+    } catch (err) {
+      alert("Lỗi khi lưu cấu hình!");
+    } finally {
+      setIsSavingConfig(false);
+    }
+  }
+
   const statusConfig = {
-    pending: { label: "Cần duyệt", color: "bg-red-500", icon: Clock },
+    pending: { label: "Cần duyệt", color: "bg-rose-500", icon: Clock },
     preparing: { label: "Đang bếp", color: "bg-orange-500", icon: ChefHat },
     completed: { label: "Đã xong", color: "bg-emerald-500", icon: CheckCircle2 },
     cancelled: { label: "Đã hủy", color: "bg-slate-500", icon: XCircle },
@@ -131,318 +163,255 @@ export default function OrdersPage() {
     return true;
   });
 
-// Group paid orders by session_id
-const paymentSessions: PaymentSession[] = (() => {
-  const paid = orders.filter(o => o.status === "paid");
-  const map: Record<string, PaymentSession> = {};
-  paid.forEach(o => {
-    const key = o.session_id || o.id;
-    if (!map[key]) {
-      map[key] = {
-        session_id: key,
-        table_id: o.table_id,
-        table_number: o.table?.number ?? o.table_id,
-        orders: [],
-        total: 0,
-        paid_at: o.created_at,
-      };
-    }
-    map[key].orders.push(o);
-    map[key].total += o.order_items.reduce((s, i) => s + i.unit_price * i.quantity, 0);
-    if (o.created_at > map[key].paid_at) map[key].paid_at = o.created_at;
-  });
-  return Object.values(map)
-    .filter(s => {
-      if (!paymentSearch) return true;
-      return String(s.table_number).includes(paymentSearch);
-    })
-    .sort((a, b) => b.paid_at.localeCompare(a.paid_at));
-})();
+  const paymentSessions: PaymentSession[] = (() => {
+    const paid = orders.filter(o => o.status === "paid");
+    const map: Record<string, PaymentSession> = {};
+    paid.forEach(o => {
+      const key = o.session_id || o.id;
+      if (!map[key]) {
+        map[key] = {
+          session_id: key,
+          table_id: o.table_id,
+          table_number: o.table?.number ?? o.table_id,
+          orders: [],
+          total: 0,
+          paid_at: o.created_at,
+        };
+      }
+      map[key].orders.push(o);
+      map[key].total += o.order_items.reduce((s, i) => s + i.unit_price * i.quantity, 0);
+      if (o.created_at > map[key].paid_at) map[key].paid_at = o.created_at;
+    });
+    return Object.values(map)
+      .filter(s => !paymentSearch || String(s.table_number).includes(paymentSearch))
+      .sort((a, b) => b.paid_at.localeCompare(a.paid_at));
+  })();
 
-const currentOrders = activeTab === "pending" ? pendingOrders : activeTab === "preparing" ? preparingOrders : historyOrders;
+  const currentOrders = activeTab === "pending" ? pendingOrders : activeTab === "preparing" ? preparingOrders : historyOrders;
 
-if (!mounted) return null; // Quan trọng để tránh Hydration Mismatch
+  if (!mounted) return null;
 
-return (
-  <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4 md:space-y-8 animate-in fade-in duration-500">
-    {/* Header */}
-    <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 md:gap-4">
-      <div className="space-y-1">
-        <div className="flex items-center gap-2 text-primary">
-          <ShoppingCart className="size-4 md:size-5" />
-          <h1 className="text-lg md:text-2xl font-bold tracking-tight">Khu vực điều phối đơn</h1>
-        </div>
-        <p className="text-xs md:text-sm text-muted-foreground"> Duyệt đơn hàng mới và theo dỏi quy trình phục vụ tại bếp. </p>
-      </div>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={fetchOrders}
-        disabled={loading}
-        className="rounded-full bg-background font-black text-[10px] uppercase shadow-sm h-9 md:h-10"
-      >
-        <RefreshCw className={cn("size-3 mr-2", loading && "animate-spin")} />
-        Làm mới
-      </Button>
-    </div>
-
-    {/* Workflow Tabs */}
-    <div className="flex overflow-x-auto p-1 md:p-1.5 bg-muted/60 rounded-[20px] md:rounded-[28px] w-full md:w-fit border shadow-inner scrollbar-hide">
-      {[
-        { id: "pending", label: "Chờ duyệt", count: pendingOrders.length },
-        { id: "preparing", label: "Trong bếp", count: preparingOrders.length },
-        { id: "history", label: "Lịch sử", count: null },
-        { id: "payment", label: "Thanh toán", count: null },
-      ].map((tab) => (
-        <Button
-          key={tab.id}
-          variant={activeTab === tab.id ? "default" : "ghost"}
-          className={cn(
-            "rounded-[16px] md:rounded-[22px] px-4 md:px-8 font-black uppercase text-[9px] md:text-[11px] tracking-widest h-9 md:h-11 transition-all whitespace-nowrap flex-shrink-0",
-            activeTab === tab.id ? "shadow-xl shadow-primary/30" : "text-muted-foreground hover:bg-white/50"
-          )}
-          onClick={() => setActiveTab(tab.id as any)}
-        >
-          {tab.label} {tab.count !== null && <span className="ml-1 md:ml-2 py-0.5 px-1.5 md:px-2 bg-white/20 rounded-full text-[8px] md:text-[9px]">{tab.count}</span>}
-        </Button>
-      ))}
-    </div>
-
-    {/* History filters */}
-    {activeTab === "history" && (
-      <div className="flex flex-col sm:flex-row gap-2 md:gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 size-3 md:size-4 text-slate-400" />
-          <Input
-            placeholder="Tìm bàn hoặc tên món..."
-            value={historySearch}
-            onChange={e => setHistorySearch(e.target.value)}
-            className="pl-9 md:pl-11 h-9 md:h-11 rounded-xl md:rounded-2xl bg-white border-slate-100 font-medium placeholder:text-slate-300 text-sm"
-          />
-        </div>
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-          {([
-            { id: "all", label: "Tất cả" },
-            { id: "completed", label: "Đã xong" },
-            { id: "cancelled", label: "Đã hủy" },
-          ] as const).map(f => (
-            <Button
-              key={f.id}
-              size="sm"
-              variant={historyFilter === f.id ? "default" : "outline"}
-              className="rounded-xl md:rounded-2xl font-black text-[9px] md:text-[11px] uppercase tracking-widest h-9 md:h-11 border-slate-100 whitespace-nowrap flex-shrink-0"
-              onClick={() => setHistoryFilter(f.id)}
-            >
-              {f.label}
-            </Button>
-          ))}
-        </div>
-      </div>
-    )}
-
-    {/* Payment search */}
-    {activeTab === "payment" && (
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 size-3 md:size-4 text-slate-400" />
-        <Input
-          placeholder="Tìm theo số bàn..."
-          value={paymentSearch}
-          onChange={e => setPaymentSearch(e.target.value)}
-          className="pl-9 md:pl-11 h-9 md:h-11 rounded-xl md:rounded-2xl bg-white border-slate-100 font-medium placeholder:text-slate-300 text-sm"
-        />
-      </div>
-    )}
-
-    {/* Payment sessions list */}
-    {activeTab === "payment" ? (
-      paymentSessions.length > 0 ? (
-        <div className="space-y-3 md:space-y-4">
-          {paymentSessions.map(session => (
-            <div key={session.session_id} className="bg-white rounded-[20px] md:rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
-              {/* Session header */}
-              <div className="flex items-center justify-between px-4 md:px-8 py-3 md:py-5 border-b border-slate-50">
-                <div className="flex items-center gap-2 md:gap-4">
-                  <div className="size-8 md:size-10 bg-emerald-50 rounded-xl md:rounded-2xl flex items-center justify-center">
-                    <CheckCircle2 className="size-4 md:size-5 text-emerald-500" />
-                  </div>
-                  <div>
-                    <p className="font-black text-sm md:text-base text-slate-900 tracking-tight">Bàn {session.table_number}</p>
-                    <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      {new Date(session.paid_at).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                    </p>
-                  </div>
-                </div>
-                <p className="text-lg md:text-2xl font-black text-emerald-600 tracking-tighter">{session.total.toLocaleString()}đ</p>
-              </div>
-              {/* Items breakdown */}
-              <div className="px-4 md:px-8 py-3 md:py-4 space-y-2">
-                {(() => {
-                  const grouped: Record<string, { name: string; quantity: number; unit_price: number }> = {};
-                  session.orders.forEach(o => o.order_items.forEach(it => {
-                    const k = it.menu_item?.name || "Món đã ngưng";
-                    if (!grouped[k]) grouped[k] = { name: k, quantity: 0, unit_price: it.unit_price };
-                    grouped[k].quantity += it.quantity;
-                  }));
-                  return Object.values(grouped).map((it, i) => (
-                    <div key={i} className="flex justify-between items-center text-xs md:text-sm">
-                      <div className="flex items-center gap-2 md:gap-3">
-                        <span className="size-5 md:size-6 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center text-[9px] md:text-[10px] font-black">{it.quantity}</span>
-                        <span className="font-medium text-slate-700">{it.name}</span>
-                      </div>
-                      <span className="font-black text-slate-600 text-[10px] md:text-xs">{(it.quantity * it.unit_price).toLocaleString()}đ</span>
-                    </div>
-                  ));
-                })()}
-              </div>
+  return (
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-700 bg-[#f8fafc] min-h-screen">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="space-y-2">
+          <div className="flex items-center gap-3 text-slate-900">
+            <div className="size-12 bg-primary/10 rounded-[20px] flex items-center justify-center">
+              <ShoppingCart className="size-6 text-primary" />
             </div>
-          ))}
+            <div>
+              <h1 className="text-3xl font-black tracking-tight leading-none uppercase italic">Bảng bếp điều phối</h1>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Sẵn sàng phục vụ thực khách</p>
+            </div>
+          </div>
         </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center py-20 md:py-40 border-4 border-dashed rounded-[40px] md:rounded-[60px] text-center max-w-xl mx-auto border-muted-foreground/10 opacity-30">
-          <CheckCircle2 className="size-12 md:size-16 mb-4 md:mb-6" />
-          <h3 className="text-lg md:text-2xl font-black uppercase tracking-tighter italic">Chưa có thanh toán nào</h3>
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => setShowSettings(true)} className="size-14 rounded-2xl bg-white border border-slate-200 shadow-sm text-slate-400 hover:text-primary">
+            <Settings className="size-6" />
+          </Button>
+          <Button variant="outline" onClick={fetchOrders} disabled={loading} className="rounded-2xl bg-white font-black text-[10px] uppercase shadow-sm border-slate-200 h-14 px-8">
+            <RefreshCw className={cn("size-4 mr-2", loading && "animate-spin")} /> Làm mới
+          </Button>
         </div>
-      )
-    ) : loading && orders.length === 0 ? (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="h-64 rounded-[24px] md:rounded-[40px] bg-muted/40 animate-pulse" />
+      </div>
+
+      <div className="flex overflow-x-auto p-1.5 bg-slate-100 rounded-[28px] w-fit border border-slate-200/50 shadow-inner no-scrollbar">
+        {[
+          { id: "pending", label: "Chờ duyệt", count: pendingOrders.length },
+          { id: "preparing", label: "Trong bếp", count: preparingOrders.length },
+          { id: "history", label: "Lịch sử", count: null },
+          { id: "payment", label: "Thanh toán", count: null },
+        ].map((tab) => (
+          <Button
+            key={tab.id} variant={activeTab === tab.id ? "default" : "ghost"}
+            className={cn("rounded-[22px] px-8 font-black uppercase text-[11px] tracking-widest h-12 transition-all", activeTab === tab.id ? "bg-slate-900 text-white shadow-xl" : "text-slate-500 hover:bg-white/50")}
+            onClick={() => setActiveTab(tab.id as any)}
+          >
+            {tab.label} {tab.count !== null && <Badge className="ml-2 bg-primary/20 text-primary border-none font-black text-[9px]">{tab.count}</Badge>}
+          </Button>
         ))}
       </div>
-    ) : currentOrders.length > 0 ? (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
-        {currentOrders.map((order) => {
-          const Config = statusConfig[order.status] || statusConfig.pending;
-          const total = order.order_items.reduce((acc, item) => acc + (item.unit_price * item.quantity), 0);
 
-          return (
-            <Card key={order.id} className={cn(
-              "overflow-hidden rounded-[24px] md:rounded-[40px] border-none transition-all group",
-              activeTab === "history"
-                ? "shadow-sm bg-slate-50/80 hover:bg-white hover:shadow-md"
-                : "shadow-xl md:shadow-2xl shadow-slate-200/50 hover:scale-[1.02]"
-            )}>
-              <CardHeader className="pb-3 md:pb-4 bg-muted/30 px-4 md:px-6 pt-4 md:pt-6">
-                <div className="flex items-center justify-between mb-2">
-                  <Badge variant="outline" className="rounded-full px-2 md:px-4 py-1 md:py-1.5 bg-white border-primary/10 shadow-sm font-black text-primary italic tracking-tight text-[9px] md:text-[10px]">
-                    <MapPin className="size-2.5 md:size-3 mr-1 md:mr-1.5 text-primary" />
-                    {order.table?.number ? `BÀN ${order.table?.number}` : `BÀN ID: ${order.table_id}`}
-                  </Badge>
-                  <div className={cn("size-2 md:size-3 rounded-full animate-pulse", Config.color)} />
+      <ActiveOrdersContent
+        activeTab={activeTab} currentOrders={currentOrders} paymentSessions={paymentSessions} loading={loading}
+        statusConfig={statusConfig} updateStatus={updateStatus} setCancelModal={setCancelModal}
+        historySearch={historySearch} setHistorySearch={setHistorySearch} historyFilter={historyFilter} setHistoryFilter={setHistoryFilter}
+        paymentSearch={paymentSearch} setPaymentSearch={setPaymentSearch}
+        tenantConfig={tenantConfig} currentTime={currentTime}
+      />
+
+      {/* Settings Dialog */}
+      <Dialog open={showSettings} onOpenChange={setShowSettings}>
+        <DialogContent className="rounded-[40px] border-none p-10 bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black uppercase italic tracking-tight">Cấu hình nhà hàng</DialogTitle>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Tùy chỉnh thời gian chờ hủy đơn</p>
+          </DialogHeader>
+          <div className="py-8 space-y-6">
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Thời hạn hủy (Giây)</label>
+              <div className="flex gap-4">
+                <Input
+                  type="number"
+                  className="h-16 rounded-2xl bg-slate-50 border-slate-100 font-black text-2xl text-center"
+                  value={newWindowSeconds}
+                  onChange={(e) => setNewWindowSeconds(parseInt(e.target.value) || 0)}
+                />
+                <div className="flex flex-col justify-center">
+                  <span className="text-sm font-black text-slate-900 italic">~ {Math.floor(newWindowSeconds / 60)} PHÚT</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">THỜI GIAN CHỜ</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 md:gap-2 text-[9px] md:text-[10px] text-muted-foreground font-black uppercase tracking-tighter">
-                    <Clock className="size-2.5 md:size-3" />
-                    {new Date(order.created_at).toLocaleTimeString("vi-VN")}
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 pt-6 border-t">
+            <Button variant="ghost" className="h-14 rounded-2xl font-bold bg-slate-50" onClick={() => setShowSettings(false)}>ĐÓNG</Button>
+            <Button disabled={isSavingConfig} className="h-14 rounded-2xl font-black bg-slate-900 text-white" onClick={handleSaveConfig}>
+              {isSavingConfig ? <RefreshCw className="animate-spin" /> : <><Save size={16} className="mr-2" /> LƯU LẠI</>}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={cancelModal.open} onOpenChange={(open) => setCancelModal({ ...cancelModal, open })}>
+        <AlertDialogContent className="rounded-[40px] border-none p-10 bg-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-2xl font-black uppercase italic tracking-tight">Hủy đơn hàng này?</AlertDialogTitle>
+            <AlertDialogDescription className="font-bold text-slate-400">Bạn có chắc chắn muốn bỏ qua đơn hàng này không?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="pt-6 gap-3">
+            <AlertDialogCancel className="rounded-2xl font-bold h-14 border-none bg-slate-100">QUAY LẠI</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-2xl font-black bg-rose-500 hover:bg-rose-600 text-white h-14 px-8"
+              onClick={() => { if (cancelModal.orderId) updateStatus(cancelModal.orderId, "cancelled"); setCancelModal({ open: false, orderId: null }); }}
+            > CÓ, HỦY NGAY </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function ActiveOrdersContent({
+  activeTab, currentOrders, paymentSessions, loading, statusConfig, updateStatus, setCancelModal,
+  historySearch, setHistorySearch, historyFilter, setHistoryFilter, paymentSearch, setPaymentSearch,
+  tenantConfig, currentTime
+}: any) {
+  if (activeTab === "payment") {
+    return (
+      <div className="space-y-6">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+          <Input placeholder="Tìm số bàn..." value={paymentSearch} onChange={e => setPaymentSearch(e.target.value)} className="pl-12 h-14 rounded-2xl bg-white border-slate-200 font-bold" />
+        </div>
+        {paymentSessions.length > 0 ? (
+          <div className="space-y-4">
+            {paymentSessions.map((session: any) => (
+              <div key={session.session_id} className="bg-white rounded-[32px] border border-slate-100 shadow-sm p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                  <div className="size-14 bg-emerald-100 rounded-3xl flex items-center justify-center"><CheckCircle2 className="size-6 text-emerald-600" /></div>
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900 tracking-tight">Bàn {session.table_number}</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date(session.paid_at).toLocaleString("vi-VN")}</p>
                   </div>
-                  <Badge className={cn("text-white border-none rounded-full font-black text-[8px] md:text-[9px] px-2 md:px-3 uppercase tracking-widest", Config.color)}>
-                    {Config.label}
-                  </Badge>
                 </div>
-              </CardHeader>
-              <CardContent className="p-4 md:p-8 space-y-4 md:space-y-6">
-                <div className="space-y-3 md:space-y-5">
-                  {order.order_items.map((item) => (
-                    <div key={item.id} className="flex items-center gap-3 md:gap-5">
-                      <div className="size-12 md:size-14 rounded-2xl md:rounded-3xl overflow-hidden bg-muted flex-shrink-0 border-2 border-white shadow-sm">
-                        {item.menu_item?.image_url ? (
-                          <Image src={item.menu_item.image_url} alt="" className="size-full object-cover" fill />
-                        ) : (
-                          <div className="size-full flex items-center justify-center bg-slate-50 opacity-20">
-                            <ChefHat className="size-5 md:size-6" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs md:text-sm font-black truncate leading-none mb-1 md:mb-1.5 tracking-tight">{item.menu_item?.name || "Món đã bị xóa"}</p>
-                        <p className="text-[9px] md:text-[10px] text-muted-foreground font-black uppercase tracking-widest">SL: {item.quantity}</p>
-                      </div>
-                      <div className="text-xs md:text-sm font-black text-slate-900 tracking-tighter italic">
-                        {(item.unit_price * item.quantity).toLocaleString()}đ
-                      </div>
+                <div><p className="text-3xl font-black text-emerald-600 tracking-tighter">{session.total.toLocaleString()}đ</p></div>
+              </div>
+            ))}
+          </div>
+        ) : <EmptyState icon={AlertCircle} label="Chưa có thanh toán" />}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {activeTab === "history" && (
+        <div className="relative max-w-sm">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+          <Input placeholder="Tìm kiếm bàn, món..." value={historySearch} onChange={e => setHistorySearch(e.target.value)} className="pl-12 h-14 rounded-2xl bg-white border-slate-200 font-bold" />
+        </div>
+      )}
+      {currentOrders.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-20">
+          {currentOrders.map((order: any) => {
+            const Config = statusConfig[order.status] || statusConfig.pending;
+            const total = order.order_items.reduce((acc: any, item: any) => acc + (item.unit_price * item.quantity), 0);
+
+            const cancelWindow = tenantConfig?.order_cancel_window || 0;
+            const createdTime = new Date(order.created_at).getTime();
+            const secondsLeft = cancelWindow - Math.floor((currentTime - createdTime) / 1000);
+            const isWaitingForGuest = order.status === "pending" && secondsLeft > 0;
+
+            return (
+              <Card key={order.id} className="rounded-[40px] border-none shadow-2xl shadow-slate-200/50 overflow-hidden bg-white group hover:scale-[1.01] transition-all relative">
+                <CardHeader className="bg-slate-50/50 p-8 border-b border-dashed border-slate-200">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                      <Badge className="bg-slate-900 text-white border-none font-black text-[10px] px-3 py-1 rounded-full uppercase italic"><MapPin size={10} className="mr-1" /> Bàn {order.table?.number || "..."}</Badge>
+                      <div className="flex items-center gap-1.5 mt-2"><User size={12} className="text-slate-400" /><span className="text-xs font-black text-slate-600 uppercase tracking-tight">{order.customer_name || "Khách ẩn danh"}</span></div>
                     </div>
-                  ))}
-                </div>
+                    <Badge className={cn("text-white font-black uppercase text-[9px] px-3 py-1 rounded-full", Config.color)}>{Config.label}</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-8 space-y-6">
+                  <div className="space-y-4">
+                    {order.order_items.map((it: any) => (
+                      <div key={it.id} className="flex items-center gap-4">
+                        <span className="size-10 rounded-2xl bg-slate-100 flex items-center justify-center font-black text-xs text-slate-600 border border-slate-200">x{it.quantity}</span>
+                        <div className="flex-1"><p className="font-bold text-sm text-slate-800 leading-tight">{it.menu_item?.name || "Món đã ngưng"}</p></div>
+                        <span className="font-black text-slate-900 text-sm italic">{(it.unit_price * it.quantity).toLocaleString()}đ</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="h-16 bg-slate-50 rounded-3xl flex items-center justify-between px-6 border border-slate-100">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tổng bill</span>
+                    <span className="text-2xl font-black text-slate-900 tracking-tighter italic">{total.toLocaleString()}đ</span>
+                  </div>
+                </CardContent>
+                <CardFooter className="p-8 pt-0 flex gap-3">
+                  {order.status === "pending" && (
+                    <>
+                      <Button
+                        disabled={isWaitingForGuest}
+                        className={cn(
+                          "flex-1 h-14 font-black rounded-2xl shadow-xl text-xs uppercase transition-all",
+                          isWaitingForGuest
+                            ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
+                            : "bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20"
+                        )}
+                        onClick={() => updateStatus(order.id, "preparing")}
+                      >
+                        {isWaitingForGuest ? (
+                          <span className="flex items-center gap-2">
+                            <Hourglass className="size-4 animate-spin" />
+                            CHỜ KHÁCH ({Math.floor(secondsLeft / 60)}:{(secondsLeft % 60).toString().padStart(2, '0')})
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-2"><CheckCircle2 className="size-4" /> CHẤP NHẬN</span>
+                        )}
+                      </Button>
+                      <Button variant="outline" className="size-14 rounded-2xl border-rose-100 text-rose-500 hover:bg-rose-50" onClick={() => setCancelModal({ open: true, orderId: order.id })}><XCircle /></Button>
+                    </>
+                  )}
+                  {order.status === "preparing" && (
+                    <Button className="w-full h-14 bg-slate-900 text-white font-black rounded-2xl shadow-xl text-xs uppercase" onClick={() => updateStatus(order.id, "completed")}>GIAO MÓN XONG</Button>
+                  )}
+                </CardFooter>
+              </Card>
+            );
+          })}
+        </div>
+      ) : <EmptyState icon={AlertCircle} label="Hiện tại chưa có đơn hàng nào" />}
+    </div>
+  );
+}
 
-                <div className="pt-2">
-                  <div className="flex items-center justify-between h-12 md:h-14 px-4 md:px-6 bg-primary/[0.03] rounded-2xl md:rounded-3xl border border-primary/5">
-                    <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-muted-foreground">Tổng Bill</p>
-                    <p className="text-xl md:text-2xl font-black text-primary tracking-tighter italic">
-                      {total.toLocaleString()}<span className="text-[10px] md:text-xs ml-0.5">đ</span>
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter className="p-4 md:p-8 pt-0 flex gap-2 md:gap-3">
-                {order.status === "pending" && (
-                  <>
-                    <Button
-                      className="flex-1 rounded-xl md:rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-black shadow-lg md:shadow-xl shadow-emerald-500/30 h-10 md:h-14 text-[10px] md:text-xs uppercase tracking-widest"
-                      onClick={() => updateStatus(order.id, "preparing")}
-                    >
-                      <CheckCircle2 className="size-3 md:size-4 mr-1.5 md:mr-2" /> CHẤP NHẬN
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className="rounded-xl md:rounded-2xl text-destructive hover:bg-destructive/10 font-black h-10 md:h-14 px-3 md:px-4 text-[10px] md:text-xs tracking-tighter"
-                      onClick={() => setCancelModal({ open: true, orderId: order.id })}
-                    >
-                      HỦY
-                    </Button>
-                  </>
-                )}
-                {order.status === "preparing" && (
-                  <Button
-                    className="flex-1 rounded-xl md:rounded-2xl bg-slate-900 hover:bg-black text-white font-black shadow-lg md:shadow-xl shadow-slate-900/30 h-10 md:h-14 text-[10px] md:text-xs uppercase tracking-widest"
-                    onClick={() => updateStatus(order.id, "completed")}
-                  >
-                    PHỤC VỤ XONG
-                  </Button>
-                )}
-                {order.status === "completed" && (
-                  <div className="w-full text-center text-[9px] md:text-[10px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 py-3 md:py-4 rounded-2xl md:rounded-3xl border border-emerald-100 flex items-center justify-center gap-1.5 md:gap-2">
-                    <CheckCircle2 className="size-3 md:size-4" /> ĐÃ GIAO MÓN TẬN BÀN
-                  </div>
-                )}
-                {order.status === "cancelled" && (
-                  <div className="w-full text-center text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 py-3 md:py-4 rounded-2xl md:rounded-3xl border border-dotted flex items-center justify-center gap-1.5 md:gap-2">
-                    <XCircle className="size-3 md:size-4" /> ĐƠN ĐÃ BỊ HỦY BỎ
-                  </div>
-                )}
-              </CardFooter>
-            </Card>
-          );
-        })}
-      </div>
-    ) : (
-      <div className="flex flex-col items-center justify-center py-20 md:py-40 border-4 border-dashed rounded-[40px] md:rounded-[60px] text-center max-w-xl mx-auto border-muted-foreground/10 opacity-30">
-        <AlertCircle className="size-12 md:size-16 mb-4 md:mb-6" />
-        <h3 className="text-lg md:text-2xl font-black uppercase tracking-tighter italic">Mọi thứ đã sẵn sàng</h3>
-        <p className="text-xs md:text-sm mt-1 font-medium italic underline underline-offset-4">Chưa có đơn hàng nào trong mục này</p>
-      </div>
-    )}
-
-    {/* Confirmation Modal */}
-    <AlertDialog open={cancelModal.open} onOpenChange={(open) => setCancelModal({ ...cancelModal, open })}>
-      <AlertDialogContent className="rounded-[24px] md:rounded-[40px] border-none p-6 md:p-10">
-        <AlertDialogHeader>
-          <AlertDialogTitle className="text-lg md:text-2xl font-black uppercase tracking-tight italic">Hủy đơn hàng này?</AlertDialogTitle>
-          <AlertDialogDescription className="text-xs md:text-sm text-muted-foreground font-medium pt-2"> Thao tác này sẽ chuyển đơn hàng vào mục đã hủy. Bạn có chắc chắn không? </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter className="pt-4 md:pt-6 flex-col sm:flex-row gap-2">
-          <AlertDialogCancel className="rounded-xl md:rounded-2xl font-bold h-10 md:h-12 border-none bg-muted">Quay lại</AlertDialogCancel>
-          <AlertDialogAction
-            className="rounded-xl md:rounded-2xl font-black bg-destructive hover:bg-destructive/90 text-white h-10 md:h-12 px-6 md:px-8"
-            onClick={() => {
-              if (cancelModal.orderId) updateStatus(cancelModal.orderId, "cancelled");
-              setCancelModal({ open: false, orderId: null });
-            }}
-          >
-            CÓ, HỦY ĐƠN
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  </div>
-);
+function EmptyState({ icon: Icon, label }: any) {
+  return (
+    <div className="flex flex-col items-center justify-center py-40 border-[6px] border-dashed rounded-[60px] text-center border-slate-200/50 opacity-50">
+      <Icon className="size-20 text-slate-300 mb-6" />
+      <h3 className="text-2xl font-black text-slate-400 uppercase tracking-tighter italic">{label}</h3>
+    </div>
+  );
 }

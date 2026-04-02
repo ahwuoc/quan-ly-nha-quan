@@ -27,7 +27,6 @@ export async function POST(
     const supabase = getSupabaseClient();
     console.log(`[ORDER_API_TRACE] Bắt đầu xử lý: Tenant=${tenantSlug}, Session=${tableSessionId}`);
 
-    // 1. Tìm Tenant
     const tenantId = await getTenantIdBySlug(supabase, tenantSlug);
     if (!tenantId) {
       console.error(`[ORDER_API_TRACE] 404: Không tìm thấy quán với slug: ${tenantSlug}`);
@@ -36,10 +35,9 @@ export async function POST(
     console.log(`[ORDER_API_TRACE] Đã tìm thấy quán ID: ${tenantId}`);
 
     const body = await request.json();
-    const { table_id, items } = body;
-    console.log(`[ORDER_API_TRACE] Đang kiểm tra bàn: ${table_id}`);
+    const { table_id, items, customer_name } = body;
+    console.log(`[ORDER_API_TRACE] Đang kiểm tra bàn: ${table_id}, Khách: ${customer_name}`);
 
-    // 2. Tìm Bàn
     const { data: table, error: tableError } = await supabase
       .from("tables")
       .select("session_id, status")
@@ -69,7 +67,8 @@ export async function POST(
         table_id,
         tenant_id: tenantId,
         status: "pending",
-        session_id: tableSessionId
+        session_id: tableSessionId,
+        customer_name: customer_name || (await cookieStore).get("member_name")?.value || "Khách ẩn danh"
       })
       .select()
       .maybeSingle();

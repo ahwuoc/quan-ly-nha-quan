@@ -23,6 +23,14 @@ export type TenantSettings = {
   name: string;
   slug: string;
   currentIp: string;
+  bank_name?: string;
+  bank_account_number?: string;
+  bank_account_name?: string;
+  bank_qr_enabled?: boolean;
+  order_cancel_window?: number;
+  ip_auto_sync?: boolean;
+  wifi_name?: string;
+  wifi_password?: string;
 };
 
 export type UpdateSettingsPayload = Partial<Omit<TenantSettings, 'currentIp' | 'name' | 'slug'>>;

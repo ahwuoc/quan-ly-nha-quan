@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { tenantsApi, type TenantSettings as SettingsData } from "@/lib/api/tenants";
-import { Shield, Save, Plus, X, Globe, Lock, AlertCircle, Info } from "lucide-react";
+import { Shield, Save, Plus, X, Globe, Lock, AlertCircle, Info, Clock, RefreshCw, Zap } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { toast } from "sonner";
 
 
 
@@ -25,7 +26,16 @@ export default function SettingsPage() {
   const fetchSettings = useCallback(async function () {
     try {
       const result = await tenantsApi.getSettings(tenantSlug);
-      setData(result.payload);
+      const sanitized = {
+        ...result.payload,
+        allowed_ips: result.payload.allowed_ips || [],
+        ip_restriction_enabled: !!result.payload.ip_restriction_enabled,
+        order_cancel_window: result.payload.order_cancel_window ?? 120,
+        ip_auto_sync: !!result.payload.ip_auto_sync,
+        wifi_name: result.payload.wifi_name || "",
+        wifi_password: result.payload.wifi_password || ""
+      };
+      setData(sanitized);
     } catch (error) {
       console.error(error);
     } finally {
@@ -46,10 +56,14 @@ export default function SettingsPage() {
       await tenantsApi.updateSettings(tenantSlug, {
         allowed_ips: data.allowed_ips,
         ip_restriction_enabled: data.ip_restriction_enabled,
+        order_cancel_window: data.order_cancel_window,
+        ip_auto_sync: data.ip_auto_sync,
+        wifi_name: data.wifi_name,
+        wifi_password: data.wifi_password,
       });
-      alert("Cấu hình đã được lưu thành công!");
+      toast.success("Cấu hình đã được lưu thành công!");
     } catch (error) {
-      alert("Lỗi khi lưu cấu hình!");
+      toast.error("Lỗi khi lưu cấu hình!");
     } finally {
       setSaving(false);
     }
@@ -75,15 +89,15 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-3 md:p-4 lg:p-8 max-w-4xl mx-auto space-y-4 md:space-y-8 pb-24 md:pb-20">
+    <div className="p-3 md:p-4 lg:p-8 max-w-4xl mx-auto space-y-4 md:space-y-8 pb-32">
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2 md:gap-3">
           <div className="bg-primary/10 p-1.5 md:p-2 rounded-lg md:rounded-xl">
             <Lock className="size-5 md:size-6 text-primary" />
           </div>
-          <h1 className="text-xl md:text-3xl font-black tracking-tight uppercase">Cài đặt bảo mật</h1>
+          <h1 className="text-xl md:text-3xl font-black tracking-tight uppercase">Cài đặt hệ thống</h1>
         </div>
-        <p className="text-xs md:text-sm text-muted-foreground font-medium">Thiết lập giới hạn truy cập cho @{tenantSlug}</p>
+        <p className="text-xs md:text-sm text-muted-foreground font-medium">Thiết lập bảo mật và đơn hàng cho @{tenantSlug}</p>
       </div>
 
       <Card className="border-none shadow-xl md:shadow-2xl shadow-black/5 rounded-[24px] md:rounded-[40px] overflow-hidden">
@@ -111,23 +125,90 @@ export default function SettingsPage() {
             </Alert>
           )}
 
-          <div className="space-y-4">
-            <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">IP của bạn hiện tại</label>
-            <div className="flex items-center gap-4 bg-muted/40 p-5 rounded-[32px] border border-black/5 transition-all hover:bg-muted/60">
-              <Globe className="size-6 text-primary flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-lg font-black tracking-tight font-mono">{data.currentIp}</p>
-                <p className="text-[10px] uppercase font-bold text-muted-foreground opacity-70">Đây là địa chỉ IP mạng bạn đang sử dụng</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+            <div className="space-y-4">
+              <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">IP của bạn hiện tại</label>
+              <div className="flex items-center gap-4 bg-muted/40 p-5 rounded-[32px] border border-black/5 transition-all hover:bg-muted/60">
+                <Globe className="size-6 text-primary flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-lg font-black tracking-tight font-mono">{data.currentIp}</p>
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground opacity-70">Địa chỉ Wi-Fi hiện tại của quán</p>
+                </div>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="rounded-2xl h-10 px-6 font-bold border-none bg-white shadow-sm hover:bg-primary hover:text-white transition-all active:scale-95"
-                onClick={() => addIp(data.currentIp)}
-                disabled={data.allowed_ips.includes(data.currentIp)}
-              >
-                + Thêm ngay
-              </Button>
+            </div>
+
+            <div className="bg-slate-50 p-6 rounded-[32px] border border-slate-100 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="size-10 bg-amber-500/10 rounded-xl flex items-center justify-center">
+                    <Zap className="size-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-slate-800 uppercase italic">Tự đồng bộ IP</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Luôn cập nhật khi admin đăng nhập</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={data.ip_auto_sync}
+                  onCheckedChange={(checked) => setData({ ...data, ip_auto_sync: checked })}
+                />
+              </div>
+              <p className="text-[10px] text-slate-500 font-medium leading-relaxed italic">
+                Bật tính năng này để hệ thống tự cập nhật IP Wi-Fi mỗi khi mạng quán thay đổi (reset modem), giúp khách luôn vào được menu.
+              </p>
+            </div>
+          </div>
+
+          <Separator className="bg-black/[0.05]" />
+
+          <div className="space-y-6">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1 flex items-center gap-2">
+                🏠 Thông tin Wi-Fi của quán
+              </label>
+              <p className="text-[10px] text-muted-foreground ml-1 italic">Thông tin này sẽ hiển thị cho khách để họ tự kết nối khi bị chặn truy cập.</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-slate-400 pl-1">Tên Wi-Fi (SSID)</label>
+                <Input
+                  placeholder="VD: Sanmyshi_Coffee"
+                  value={data.wifi_name}
+                  onChange={(e) => setData({ ...data, wifi_name: e.target.value })}
+                  className="rounded-2xl h-12 bg-muted/40 border-none px-5 font-bold"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-slate-400 pl-1">Mật khẩu Wi-Fi</label>
+                <Input
+                  placeholder="VD: 88888888"
+                  value={data.wifi_password}
+                  onChange={(e) => setData({ ...data, wifi_password: e.target.value })}
+                  className="rounded-2xl h-12 bg-muted/40 border-none px-5 font-bold"
+                />
+              </div>
+            </div>
+          </div>
+
+          <Separator className="bg-black/[0.05]" />
+
+          <div className="space-y-6">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1 flex items-center gap-2">
+                <Clock size={14} /> Thời gian cho phép hủy đơn (giây)
+              </label>
+              <p className="text-[10px] text-muted-foreground ml-1 italic">Khoảng thời gian khách hàng có thể tự hủy món sau khi bấm đặt.</p>
+            </div>
+
+            <div className="flex items-center gap-4 max-w-xs transition-all focus-within:translate-x-1">
+              <Input
+                type="number"
+                value={data.order_cancel_window || 120}
+                onChange={(e) => setData({ ...data, order_cancel_window: parseInt(e.target.value) || 0 })}
+                className="h-14 rounded-2xl bg-muted/40 border-none font-black text-xl text-center focus-visible:ring-primary/20 shadow-inner"
+              />
+              <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Giây</span>
             </div>
           </div>
 
@@ -183,22 +264,22 @@ export default function SettingsPage() {
               <Info className="size-5 text-orange-600" />
               <AlertTitle className="font-black text-orange-900 mb-1">LƯU Ý QUAN TRỌNG</AlertTitle>
               <AlertDescription className="text-[10px] font-medium leading-relaxed">
-                Nếu Wi-Fi quán của bạn không sử dụng IP tĩnh, IP công cộng có thể thay đổi định kỳ hoặc sau khi mất điện.
-                Hãy đảm bảo bạn cập nhật IP mới tại đây nếu khách hàng không thể vào được Menu.
+                Nếu Wi-Fi quán của bạn không sử dụng IP tĩnh (như gói cước gia đình/văn phòng thông thường), IP công cộng sẽ thay đổi sau khi mất điện hoặc reset modem.
+                Hãy bật tính năng <span className="font-bold underline">Tự đồng bộ IP</span> để hệ thống luôn cập nhật giúp khách hàng không bị chặn.
               </AlertDescription>
             </Alert>
           </div>
         </CardContent>
       </Card>
 
-      <div className="fixed bottom-4 md:bottom-8 left-1/2 -translate-x-1/2 w-full max-w-4xl px-3 md:px-4 lg:px-8 pointer-events-none">
+      <div className="fixed bottom-4 md:bottom-8 left-1/2 -translate-x-1/2 w-full max-w-4xl px-3 md:px-4 lg:px-8 pointer-events-none z-50">
         <Button
           className="w-full h-14 md:h-16 rounded-[20px] md:rounded-[28px] bg-primary hover:bg-primary/90 text-white font-black shadow-2xl shadow-primary/30 text-sm md:text-lg tracking-tight pointer-events-auto transition-transform active:scale-95"
           onClick={handleSave}
           disabled={saving}
         >
           {saving ? (
-            <div className="size-5 md:size-6 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+            <RefreshCw className="size-5 md:size-6 animate-spin" />
           ) : (
             <>
               <Save className="size-5 md:size-6 mr-2 md:mr-3" /> LƯU THAY ĐỔI CẤU HÌNH

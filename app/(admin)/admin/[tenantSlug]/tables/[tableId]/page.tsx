@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase-client";
 import { tablesApi, ordersApi, menuApi, type Table, type Order, type MenuItem } from "@/lib/api";
 
@@ -14,10 +14,18 @@ import { AddItemDialog } from "./_components/AddItemDialog";
 import { CheckoutDialog } from "./_components/CheckoutDialog";
 import { PrintTemplates } from "./_components/PrintTemplates";
 
+
 export default function TableDetailsPage() {
   const params = useParams();
+  const router = useRouter();
   const tenantSlug = params.tenantSlug as string;
   const tableId = params.tableId as string;
+
+  useEffect(() => {
+    if (tableId?.startsWith("temp-")) {
+      router.replace(`/admin/${tenantSlug}/tables`);
+    }
+  }, [tableId, tenantSlug, router]);
 
   const [table, setTable] = useState<Table | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -215,7 +223,7 @@ export default function TableDetailsPage() {
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-12 animate-in fade-in duration-700 bg-[#fafafa] min-h-screen pb-32">
-      <TableTitleHeader 
+      <TableTitleHeader
         table={table}
         tenantSlug={tenantSlug}
         loading={loading}
@@ -231,7 +239,7 @@ export default function TableDetailsPage() {
         </div>
 
         <div className="lg:col-span-8 space-y-8 md:space-y-12">
-          <SessionItemsCard 
+          <SessionItemsCard
             table={table}
             groupedItems={groupedItems}
             onUpdateQuantity={handleUpdateQuantity}
@@ -242,7 +250,7 @@ export default function TableDetailsPage() {
         </div>
       </div>
 
-      <AddItemDialog 
+      <AddItemDialog
         open={isAddItemOpen}
         onOpenChange={setIsAddItemOpen}
         searchTerm={searchTerm}
@@ -252,7 +260,7 @@ export default function TableDetailsPage() {
         saving={saving}
       />
 
-      <CheckoutDialog 
+      <CheckoutDialog
         open={isCheckoutOpen}
         onOpenChange={setIsCheckoutOpen}
         table={table}
@@ -265,7 +273,7 @@ export default function TableDetailsPage() {
         saving={saving}
       />
 
-      <PrintTemplates 
+      <PrintTemplates
         table={table}
         tenantSlug={tenantSlug}
         groupedItems={groupedItems}

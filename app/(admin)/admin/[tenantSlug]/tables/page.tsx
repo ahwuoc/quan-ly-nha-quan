@@ -179,9 +179,14 @@ export default function TablesPage() {
       };
       
       if (isNew) {
-        await tablesApi.createTable(tenantSlug, payload);
+        const result = await tablesApi.createTable(tenantSlug, payload);
+        if (result.status === 201 && result.payload?.id) {
+          router.push(`/admin/${tenantSlug}/tables/${result.payload.id}`);
+          setModal({ open: false });
+          return;
+        }
       } else {
-        await tablesApi.updateTable(tenantSlug, payload);
+        await tablesApi.updateTable(tenantSlug, { id: table.id, ...payload });
       }
       await fetchData();
       setModal({ open: false });

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useParams, useRouter } from "next/navigation";
-import { LayoutDashboard, UtensilsCrossed, Grid3x3, Tag, ShoppingCart, Shield, ChevronLeft, TrendingUp, Bell, Users, Key } from "lucide-react";
+import { LayoutDashboard, UtensilsCrossed, Grid3x3, Tag, ShoppingCart, Shield, ChevronLeft, TrendingUp, Bell, Users, Key, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { Toaster, toast } from "sonner";
@@ -47,7 +47,7 @@ function RealtimeNotifier() {
           if (!payload.new.payment_requested) return;
           toast("💳 Yêu cầu thanh toán!", {
             description: `Bàn ${payload.new.number} muốn thanh toán`,
-            duration: 0, // không tự tắt
+            duration: 0,
             action: { label: "Xem bàn", onClick: () => window.location.href = `/admin/${tenantSlug}/tables` },
           });
         }
@@ -76,6 +76,7 @@ function Sidebar() {
     { href: `/admin/${tenantSlug}/tables`, label: "Sơ đồ bàn", icon: Grid3x3 },
     { href: `/admin/${tenantSlug}/members`, label: "Nhân sự", icon: Users },
     { href: `/admin/${tenantSlug}/permissions`, label: "Phân quyền", icon: Key },
+    { href: `/admin/${tenantSlug}/banking`, label: "Tài khoản ngân hàng", icon: CreditCard },
     { href: `/admin/${tenantSlug}/settings`, label: "Cài đặt bảo mật", icon: Shield },
   ];
 
@@ -133,14 +134,13 @@ function Sidebar() {
         </nav>
 
         <div className="p-2 border-t border-border mt-auto">
-          <Link
+          <a
             href="/tenants?back=true"
-            onClick={() => setIsOpen(false)}
             className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-all"
           >
             <ChevronLeft className="size-4 shrink-0" />
             Đổi nhà hàng
-          </Link>
+          </a>
           <p className="px-2 mt-2 text-[10px] text-muted-foreground uppercase font-bold tracking-widest text-center">
             v2.0 Premium Edition
           </p>
