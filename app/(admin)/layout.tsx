@@ -145,6 +145,88 @@ function Sidebar() {
   const params = useParams();
   const tenantSlug = params.tenantSlug as string;
   const [isOpen, setIsOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const supabase = getSupabaseClient();
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function fetchRole() {
+      if (!tenantSlug || !mounted) return;
+      setUserRole("...");
+
+      try {
+        // Try session first (fastest)
+        const { data: { session } } = await supabase.auth.getSession();
+        let user: any = session?.user;
+
+        if (!user) {
+          const { data: userData } = await supabase.auth.getUser();
+          user = userData?.user;
+        }
+
+        if (!user) {
+          if (mounted) setUserRole("Chưa Login");
+          return;
+        }
+
+        // 1. Get tenant
+        const { data: tenant }: any = await supabase
+          .from("tenants")
+          .select("id, owner_id")
+          .eq("slug", tenantSlug)
+          .single();
+
+        if (!tenant) {
+          if (mounted) setUserRole("Lỗi quán");
+          return;
+        }
+
+        // 2. Get membership
+        const { data: membership }: any = await supabase
+          .from("tenant_users")
+          .select("role")
+          .eq("user_id", user.id)
+          .eq("tenant_id", tenant.id)
+          .single();
+
+        if (membership) {
+          const roleMap: Record<string, string> = {
+            owner: "Chủ quán 👑",
+            admin: "Quản trị viên ⚡",
+            member: "Nhân viên 👤",
+          };
+          if (mounted) setUserRole(roleMap[membership.role] || membership.role);
+          return;
+        }
+
+        // 3. Fallback to owner check
+        if (tenant.owner_id === user.id) {
+          if (mounted) setUserRole("Chủ quán 👑");
+        } else {
+          if (mounted) setUserRole("Thành viên 👤");
+        }
+      } catch (err) {
+        console.error("Role error:", err);
+        if (mounted) setUserRole("Lỗi kết nối");
+      }
+    }
+
+    // Listen for auth changes to auto-update
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user && mounted) {
+        fetchRole();
+      }
+    });
+
+    fetchRole();
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [tenantSlug, supabase]);
 
   const navItems = [
     { href: `/admin/${tenantSlug}`, label: "Tổng quan", icon: LayoutDashboard },
@@ -180,18 +262,36 @@ function Sidebar() {
 
       {/* Sidebar */}
       <aside className={cn(
-        "w-64 shrink-0 flex flex-col bg-card border-r border-border h-screen sticky top-0 z-40 transition-transform duration-300",
+        "shrink-0 flex flex-col bg-card border-r border-border h-screen sticky top-0 z-40 transition-all duration-300 ease-in-out",
         "lg:translate-x-0",
-        isOpen ? "fixed translate-x-0" : "fixed -translate-x-full lg:relative"
+        isCollapsed ? "lg:w-20" : "lg:w-64",
+        isOpen ? "fixed translate-x-0 w-64" : "fixed -translate-x-full lg:relative"
       )}>
-        <div className="px-4 py-4 flex items-center gap-2.5">
-          <div>
-            <p className="font-semibold text-sm leading-tight">Quản Lý Quán</p>
-            <p className="text-xs text-muted-foreground">Admin Panel</p>
-          </div>
+        <div className={cn("px-4 py-4 flex items-center justify-between", isCollapsed && "lg:px-0 lg:justify-center")}>
+          {!isCollapsed && (
+            <div className="animate-in fade-in duration-300">
+              <p className="font-bold text-sm leading-tight text-slate-800">Quản Lý Quán</p>
+              <div className="flex items-center gap-1.5 mt-0.5 whitespace-nowrap">
+                <p className="text-[10px] text-slate-400 uppercase font-black tracking-tighter">Admin Panel</p>
+                {userRole && (
+                  <>
+                    <span className="size-0.5 rounded-full bg-slate-300" />
+                    <p className="text-[10px] text-primary font-black uppercase tracking-tighter italic">Role: {userRole}</p>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="hidden lg:flex size-8 items-center justify-center rounded-lg hover:bg-muted text-muted-foreground transition-colors"
+            title={isCollapsed ? "Mở rộng" : "Thu gọn"}
+          >
+            <ChevronLeft className={cn("size-4 transition-transform duration-300", isCollapsed && "rotate-180")} />
+          </button>
         </div>
         <Separator />
-        <nav className="flex-1 p-2 flex flex-col gap-0.5 mt-1 overflow-y-auto">
+        <nav className="flex-1 p-2 flex flex-col gap-0.5 mt-1 overflow-y-auto font-black text-[12px]">
           {navItems.map(({ href, label, icon: Icon }) => {
             const active = pathname === href;
             return (
@@ -200,30 +300,47 @@ function Sidebar() {
                 href={href}
                 onClick={() => setIsOpen(false)}
                 className={cn(
-                  "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                  "flex items-center gap-2.5 px-3 py-2 rounded-lg text-[11px] font-bold transition-all duration-200",
                   active
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                 )}
               >
-                <Icon className="size-4 shrink-0" />
-                {label}
+                <Icon className={cn("size-4 shrink-0", active ? "text-primary-foreground" : "text-slate-400")} />
+                {!isCollapsed && <span className="animate-in fade-in slide-in-from-left-2 duration-300 uppercase tracking-tight">{label}</span>}
               </Link>
             );
           })}
         </nav>
 
-        <div className="p-2 border-t border-border mt-auto">
+        <div className={cn("p-2 border-t border-border mt-auto", isCollapsed && "lg:p-1")}>
           <a
             href="/tenants?back=true"
-            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-all"
+            className={cn(
+              "flex items-center gap-2.5 px-3 py-2 rounded-lg text-[10px] font-black text-slate-400 hover:bg-slate-50 hover:text-slate-900 transition-all uppercase tracking-widest",
+              isCollapsed && "lg:justify-center lg:px-0"
+            )}
+            title="Đổi nhà hàng"
           >
-            <ChevronLeft className="size-4 shrink-0" />
-            Đổi nhà hàng
+            <ChevronLeft className="size-3.5 shrink-0" />
+            {!isCollapsed && <span className="animate-in fade-in duration-300">Đổi nhà hàng</span>}
           </a>
-          <p className="px-2 mt-2 text-[10px] text-muted-foreground uppercase font-bold tracking-widest text-center">
-            v2.0 Premium Edition
-          </p>
+
+          {userRole && !isCollapsed && (
+            <div className="px-3 py-2 mt-1.5 bg-slate-50 rounded-xl border border-slate-100 animate-in zoom-in-95 duration-500">
+              <p className="text-[9px] uppercase font-black text-slate-400 tracking-widest leading-none mb-1.5 opacity-70">Phân quyền</p>
+              <div className="flex items-center gap-2">
+                <Shield size={10} className="text-primary" />
+                <p className="text-[10px] font-black text-primary tracking-tight uppercase">Role: {userRole}</p>
+              </div>
+            </div>
+          )}
+
+          {!isCollapsed && (
+            <p className="px-2 mt-2 text-[10px] text-muted-foreground uppercase font-bold tracking-widest text-center animate-in fade-in duration-300">
+              v2.0 Premium Edition
+            </p>
+          )}
         </div>
       </aside>
     </>
