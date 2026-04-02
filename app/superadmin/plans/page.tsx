@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Package, RefreshCw, Pencil, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,15 +19,15 @@ export default function PlansPage() {
   const [form, setForm] = useState<Partial<Plan>>({});
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { load(); }, []);
-
-  async function load() {
+  const load = useCallback(async function () {
     setLoading(true);
     const res = await fetch("/api/superadmin/plans");
     const data = await res.json();
     if (Array.isArray(data)) setPlans(data);
     setLoading(false);
-  }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   function startEdit(p: Plan) {
     setEditing(p.id);
@@ -107,14 +107,14 @@ export default function PlansPage() {
                     <div key={key} className="bg-white/5 rounded-2xl p-3 space-y-1">
                       <p className="text-[9px] text-white/30 font-black uppercase tracking-widest">{label}</p>
                       {isEditing ? (
-                        <Input type="number" value={(data as any)[key] ?? ""}
+                      <Input type="number" value={data[key as keyof Plan] as number ?? ""}
                           onChange={e => setForm(f => ({ ...f, [key]: Number(e.target.value) }))}
                           className="bg-white/10 border-white/20 text-white font-black h-8 rounded-xl text-sm p-2" />
                       ) : (
                         <p className="text-lg font-black text-white">
-                          {key === "duration_days" && (p as any)[key] === 0
+                          {key === "duration_days" && p[key as keyof Plan] === 0
                             ? "∞"
-                            : (p as any)[key].toLocaleString() + suffix}
+                            : (p[key as keyof Plan] as number).toLocaleString() + suffix}
                         </p>
                       )}
                     </div>

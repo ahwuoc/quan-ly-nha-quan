@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -82,9 +83,9 @@ export default function SignupPage() {
 
             <p className="text-sm text-center text-muted-foreground">
               Đã có tài khoản?{" "}
-              <a href="/auth/login" className="text-primary hover:underline">
+              <Link href="/auth/login" className="text-primary hover:underline">
                 Đăng nhập
-              </a>
+              </Link>
             </p>
           </form>
         </CardContent>

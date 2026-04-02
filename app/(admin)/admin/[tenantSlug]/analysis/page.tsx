@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
+import { analysisApi } from "@/lib/api";
 import {
   TrendingUp,
   ShoppingBag,
@@ -33,9 +34,20 @@ interface Metric {
   growth: number;
 }
 
+interface RevenueDataPoint {
+  label: string;
+  revenue: number;
+}
+
+interface TopDish {
+  name: string;
+  revenue: number;
+  count: number;
+}
+
 interface AnalysisData {
-  revenueData: any[];
-  topDishes: any[];
+  revenueData: RevenueDataPoint[];
+  topDishes: TopDish[];
   metrics: {
     today: Metric;
     week: Metric;
@@ -47,7 +59,7 @@ interface AnalysisData {
   };
 }
 
-const MetricCard = ({ title, metric, icon: Icon, color }: { title: string, metric?: Metric, icon: any, color: string }) => (
+const MetricCard = ({ title, metric, icon: Icon, color }: { title: string, metric?: Metric, icon: React.ElementType, color: string }) => (
   <Card className="rounded-[24px] md:rounded-[40px] border-none shadow-lg md:shadow-2xl shadow-slate-200/50 overflow-hidden group">
     <CardContent className="p-6 md:p-10 relative">
       <div className={`absolute right-0 top-0 size-32 md:size-40 opacity-5 rounded-full -mr-12 md:-mr-16 -mt-12 md:-mt-16 group-hover:scale-125 transition-transform duration-700 ${color}`} />
@@ -81,22 +93,21 @@ export default function AnalysisPage() {
   const [data, setData] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function fetchAnalysis() {
+  const fetchAnalysis = useCallback(async function () {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/${tenantSlug}/analysis`);
-      const result = await res.json();
-      setData(result);
+      const result = await analysisApi.getAnalysis(tenantSlug);
+      setData(result.payload);
     } catch (error) {
       console.error("Fetch analysis error:", error);
     } finally {
       setLoading(false);
     }
-  }
+  }, [tenantSlug]);
 
   useEffect(() => {
     fetchAnalysis();
-  }, [tenantSlug]);
+  }, [fetchAnalysis]);
 
   if (loading) {
     return (
@@ -183,7 +194,7 @@ export default function AnalysisPage() {
                   contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', padding: '20px' }}
                   itemStyle={{ fontWeight: 900, color: '#f43f5e' }}
                   labelStyle={{ fontWeight: 900, marginBottom: '8px', color: '#0f172a' }}
-                  formatter={(val: any) => val ? [`${val.toLocaleString()} VNĐ`, "Doanh thu"] : ["0 VNĐ", "Doanh thu"]}
+                  formatter={(val: any) => val ? [`${Number(val).toLocaleString()} VNĐ`, "Doanh thu"] : ["0 VNĐ", "Doanh thu"]}
                 />
                 <Area
                   type="monotone"
@@ -218,7 +229,7 @@ export default function AnalysisPage() {
                   <div className="w-full h-3 bg-slate-50 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-primary rounded-full group-hover:opacity-80 transition-all duration-1000"
-                      style={{ width: `${(dish.revenue / data.summary.totalRevenue) * 100}%` }}
+                      style={{ width: `${data ? (dish.revenue / data.summary.totalRevenue) * 100 : 0}%` }}
                     />
                   </div>
                 </div>

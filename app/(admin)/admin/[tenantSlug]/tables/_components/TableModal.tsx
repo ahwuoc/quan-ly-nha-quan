@@ -31,13 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 
-interface Table {
-  id: string;
-  number: number;
-  qr_code: string;
-  seats: number;
-  status: "available" | "occupied";
-}
+import { type Table } from "@/lib/api/tables";
 
 interface Props {
   item?: Table;
@@ -66,9 +60,10 @@ export default function TableModal({ item, onSave, onClose, tenantSlug, saving }
     e.preventDefault();
     if (!form.number || saving) return;
     onSave({
+      ...item,
       ...form,
       id: tableId,
-    });
+    } as any);
   }
 
   return (

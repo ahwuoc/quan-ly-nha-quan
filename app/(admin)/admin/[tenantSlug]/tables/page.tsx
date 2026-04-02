@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { getSupabaseClient } from "@/lib/supabase-client";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { tablesApi, ordersApi, type Table } from "@/lib/api";
 import {
   Plus,
   Pencil,
@@ -14,7 +15,8 @@ import {
   Search,
   Eye,
   Printer,
-  Sparkles
+  Sparkles,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,20 +36,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 
-interface Table {
-  id: string;
-  number: number;
-  qr_code: string;
-  seats: number;
-  status: "available" | "occupied";
-  current_total?: number;
-  last_active_at?: string;
-  session_id?: string | null;
-  payment_requested?: boolean;
-}
+
 
 export default function TablesPage() {
   const params = useParams();
+  const router = useRouter();
   const tenantSlug = params.tenantSlug as string;
   const [tables, setTables] = useState<Table[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
@@ -64,6 +57,23 @@ export default function TablesPage() {
   const [billItems, setBillItems] = useState<Array<{ id: string; name: string; quantity: number; price: number; originalQty: number }>>([]);
   const [billAdjustments, setBillAdjustments] = useState<Array<{ item: string; reason: string; change: number }>>([]);
   const [adjustmentReason, setAdjustmentReason] = useState("");
+
+  const fetchData = useCallback(async function () {
+    setLoading(true);
+    try {
+      const [tablesResult, ordersResult] = await Promise.all([
+        tablesApi.getTables(tenantSlug),
+        ordersApi.getOrders(tenantSlug),
+      ]);
+
+      if (Array.isArray(tablesResult.payload)) setTables(tablesResult.payload);
+      if (Array.isArray(ordersResult.payload)) setOrders(ordersResult.payload);
+    } catch (error) {
+      console.error("Failed to fetch data:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [tenantSlug]);
 
   useEffect(() => {
     setMounted(true);
@@ -107,7 +117,7 @@ export default function TablesPage() {
       supabase.removeChannel(channel);
       clearInterval(timeInterval);
     };
-  }, [tenantSlug]);
+  }, [tenantSlug, fetchData]);
   if (!mounted) {
     return (
       <div className="p-6 max-w-7xl mx-auto space-y-8">
@@ -121,25 +131,16 @@ export default function TablesPage() {
     if (saving) return;
     setSaving(true);
     try {
-      // Save adjustments if any
       if (billAdjustments.length > 0) {
-        await fetch(`/api/admin/${tenantSlug}/tables/${tableId}/bill-adjustments`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            adjustments: billAdjustments,
-            finalItems: billItems 
-          }),
-        });
+        const adjustments = billAdjustments.map(adj => ({
+          type: adj.item as 'discount' | 'service_charge' | 'tax',
+          amount: adj.change,
+          description: adj.reason,
+        }));
+        await tablesApi.saveBillAdjustments(tenantSlug, tableId, adjustments);
       }
-
-      await fetch(`/api/admin/${tenantSlug}/tables/${tableId}/payment-request`, { method: "DELETE" });
-      const res = await fetch(`/api/admin/${tenantSlug}/tables/checkout`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tableId }),
-      });
-      if (!res.ok) throw new Error("Thanh toán thất bại");
+      await tablesApi.clearPaymentRequest(tenantSlug, tableId);
+      await tablesApi.checkout(tenantSlug, { tableId });
       await fetchData();
       setCheckoutModal({ open: false });
       setBillItems([]);
@@ -153,25 +154,7 @@ export default function TablesPage() {
     }
   }
 
-  async function fetchData() {
-    setLoading(true);
-    try {
-      const [tablesRes, ordersRes] = await Promise.all([
-        fetch(`/api/admin/${tenantSlug}/tables`),
-        fetch(`/api/admin/${tenantSlug}/orders`),
-      ]);
 
-      const tablesData = await tablesRes.json();
-      const ordersData = await ordersRes.json();
-
-      if (Array.isArray(tablesData)) setTables(tablesData);
-      if (Array.isArray(ordersData)) setOrders(ordersData);
-    } catch (error) {
-      console.error("Failed to fetch data:", error);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const tableStats = {
     total: tables.length,
@@ -189,12 +172,17 @@ export default function TablesPage() {
     setSaving(true);
     try {
       const isNew = !table.id || table.id.toString().startsWith("temp-");
-      const res = await fetch(`/api/admin/${tenantSlug}/tables`, {
-        method: isNew ? "POST" : "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(table),
-      });
-      if (!res.ok) throw new Error(`Failed to save table`);
+      const payload = {
+        number: table.number,
+        seats: table.seats,
+        status: table.status,
+      };
+      
+      if (isNew) {
+        await tablesApi.createTable(tenantSlug, payload);
+      } else {
+        await tablesApi.updateTable(tenantSlug, payload);
+      }
       await fetchData();
       setModal({ open: false });
     } catch (error) {
@@ -209,10 +197,7 @@ export default function TablesPage() {
     if (!deleteId || saving) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/admin/${tenantSlug}/tables?id=${deleteId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error("Failed to delete table");
+      await tablesApi.deleteTable(tenantSlug, deleteId);
       await fetchData();
       setDeleteId(null);
       setConfirmDeleteText("");
@@ -385,10 +370,10 @@ export default function TablesPage() {
                       "rounded-2xl h-12 border-slate-100 font-bold hover:bg-slate-50 hover:text-primary transition-all",
                       table.status !== "occupied" && "w-full"
                     )}
-                    onClick={() => setModal({ open: true, item: table })}
+                    onClick={() => router.push(`/admin/${tenantSlug}/tables/${table.id}`)}
                     disabled={saving}
                   >
-                    <Pencil className="size-4 mr-2" /> Cài đặt
+                    <Settings className="size-4 mr-2" /> Quản lý
                   </Button>
                 </div>
 

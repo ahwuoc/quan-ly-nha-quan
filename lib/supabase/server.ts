@@ -19,7 +19,6 @@ export async function createServerClient() {
               cookieStore.set(name, value, options)
             );
           } catch {
-            // Server Component — ignore
           }
         },
       },
@@ -27,7 +26,6 @@ export async function createServerClient() {
   );
 }
 
-// Service role client for admin operations (bypass RLS)
 export function createServiceClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

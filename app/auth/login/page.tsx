@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -65,9 +66,9 @@ export default function LoginPage() {
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Mật khẩu</Label>
-                <a href="/auth/forgot-password" className="text-xs text-primary hover:underline">
+                <Link href="/auth/forgot-password" className="text-xs text-primary hover:underline">
                   Quên mật khẩu?
-                </a>
+                </Link>
               </div>
               <Input
                 id="password"
@@ -87,9 +88,9 @@ export default function LoginPage() {
 
             <p className="text-sm text-center text-muted-foreground">
               Chưa có tài khoản?{" "}
-              <a href="/auth/signup" className="text-primary hover:underline">
+              <Link href="/auth/signup" className="text-primary hover:underline">
                 Đăng ký
-              </a>
+              </Link>
             </p>
           </form>
         </CardContent>

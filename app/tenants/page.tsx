@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Store, LogOut, Plus, ChevronRight, LayoutDashboard, User, Trash2, ShieldAlert, AlertTriangle, Crown, Check, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { tenantsApi } from "@/lib/api";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,13 +70,12 @@ function TenantsContent() {
 
   async function fetchTenants() {
     try {
-      const res = await fetch("/api/tenants");
-      const data = await res.json();
-      if (!res.ok) {
-        if (res.status === 401) router.push("/auth/login");
+      const result = await tenantsApi.getTenants();
+      if (result.status === 401) {
+        router.push("/auth/login");
         return;
       }
-      setTenants(data);
+      setTenants(result.payload);
     } catch (error) {
       console.error("Failed to fetch tenants:", error);
     } finally {
@@ -84,17 +84,16 @@ function TenantsContent() {
 
     // Fetch archived tenants
     try {
-      const res = await fetch("/api/tenants?archived=true");
-      const data = await res.json();
-      if (res.ok) setArchivedTenants(data);
+      const result = await tenantsApi.getArchivedTenants();
+      setArchivedTenants(result.payload);
     } catch {}
 
     // Fetch subscription info
     try {
-      const res = await fetch("/api/tenants/subscription");
-      const data = await res.json();
-      if (data.plans) setPlans(data.plans);
-      if (data.subscriptions) setSubscriptions(data.subscriptions);
+      const result = await tenantsApi.getSubscription();
+      const data = result.payload;
+      if (data.plans) setPlans(data.plans as any);
+      if (data.subscriptions) setSubscriptions(data.subscriptions as any);
     } catch {}
   }
 
@@ -109,10 +108,8 @@ function TenantsContent() {
     if (!deleteConfig) return;
 
     try {
-      const res = await fetch(`/api/tenants?id=${deleteConfig.id}${deleteConfig.hard ? '&hard=true' : ''}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
+      const result = await tenantsApi.deleteTenant(deleteConfig.id, deleteConfig.hard);
+      if (result.status === 200) {
         fetchTenants();
         setDeleteConfig(null);
         setConfirmText("");
@@ -126,10 +123,8 @@ function TenantsContent() {
 
   async function restoreTenant(tenantId: string) {
     try {
-      const res = await fetch(`/api/tenants?id=${tenantId}&restore=true`, {
-        method: "PATCH",
-      });
-      if (res.ok) {
+      const result = await tenantsApi.restoreTenant(tenantId);
+      if (result.status === 200) {
         fetchTenants();
       } else {
         alert("Khôi phục thất bại");

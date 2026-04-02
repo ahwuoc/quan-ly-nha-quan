@@ -17,7 +17,6 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if tenant exists and is not deleted
     const { data: tenant, error } = await supabase
       .from("tenants")
       .select("id, slug, deleted_at")
@@ -42,15 +41,15 @@ export async function GET(request: Request) {
 
     // Check if tenant is deleted
     if (tenant.deleted_at) {
-      return NextResponse.json({ 
-        deleted: true, 
-        message: "Tenant has been archived" 
+      return NextResponse.json({
+        deleted: true,
+        message: "Tenant has been archived"
       }, { status: 200 });
     }
 
-    return NextResponse.json({ 
-      deleted: false, 
-      tenant: { id: tenant.id, slug: tenant.slug } 
+    return NextResponse.json({
+      deleted: false,
+      tenant: { id: tenant.id, slug: tenant.slug }
     }, { status: 200 });
 
   } catch (error) {

@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
+import { authApi } from "@/lib/api";
+import { membersApi, type Member, type Role } from "@/lib/api/members";
 import { Users, Crown, Shield, UserCheck, Trash2, Plus, Mail, RefreshCw, ChevronDown, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,25 +17,15 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-type Role = "owner" | "admin" | "member";
-
-interface Member {
-  id: string;
-  user_id: string;
-  email: string;
-  role: Role;
-  created_at: string;
-}
-
 interface SubscriptionLimit {
   maxMembers: number;
   currentMembers: number;
 }
 
 const ROLE_CONFIG: Record<Role, { label: string; icon: React.ElementType; color: string; bg: string; desc: string }> = {
-  owner:  { label: "Chủ sở hữu", icon: Crown,     color: "text-amber-600",  bg: "bg-amber-50 border-amber-200",  desc: "Toàn quyền, không thể bị xóa hay thay đổi" },
-  admin:  { label: "Quản lý",    icon: Shield,     color: "text-blue-600",   bg: "bg-blue-50 border-blue-200",    desc: "Quản lý menu, bàn, đơn hàng, nhân viên" },
-  member: { label: "Nhân viên",  icon: UserCheck,  color: "text-slate-600",  bg: "bg-slate-50 border-slate-200",  desc: "Xem đơn hàng và yêu cầu bàn" },
+  owner: { label: "Chủ sở hữu", icon: Crown, color: "text-amber-600", bg: "bg-amber-50 border-amber-200", desc: "Toàn quyền, không thể bị xóa hay thay đổi" },
+  admin: { label: "Quản lý", icon: Shield, color: "text-blue-600", bg: "bg-blue-50 border-blue-200", desc: "Quản lý menu, bàn, đơn hàng, nhân viên" },
+  member: { label: "Nhân viên", icon: UserCheck, color: "text-slate-600", bg: "bg-slate-50 border-slate-200", desc: "Xem đơn hàng và yêu cầu bàn" },
 };
 
 export default function MembersPage() {
@@ -48,40 +40,35 @@ export default function MembersPage() {
   const [deleteTarget, setDeleteTarget] = useState<Member | null>(null);
   const [resetPasswordTarget, setResetPasswordTarget] = useState<Member | null>(null);
 
-  useEffect(() => { fetch_(); }, [tenantSlug]);
-  async function fetch_() {
+  const fetch_ = useCallback(async function () {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/${tenantSlug}/members`);
-      const data = await res.json();
+      const result = await membersApi.getMembers(tenantSlug);
+      const data = result.payload;
       if (data.members) {
         setMembers(data.members);
-        setCurrentRole(data.currentRole);
+        const responseData = data as { members: Member[]; currentRole?: Role; maxMembers?: number };
+        setCurrentRole(responseData.currentRole || null);
         setLimits({
-          maxMembers: data.maxMembers || 3,
-          currentMembers: data.members.length,
+          maxMembers: responseData.maxMembers || 3,
+          currentMembers: (data.members as Member[]).length,
         });
       }
     } finally {
       setLoading(false);
     }
-  }
+  }, [tenantSlug]);
+
+  useEffect(() => { fetch_(); }, [fetch_]);
 
   async function handleInvite() {
     if (!inviteEmail.trim()) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/admin/${tenantSlug}/members`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+      await membersApi.inviteMember(tenantSlug, {
+        email: inviteEmail.trim(),
+        role: inviteRole,
       });
-      const data = await res.json();
-      console.log("Add member response:", { status: res.status, data });
-      if (!res.ok) { 
-        alert(data.error || "Thêm thất bại"); 
-        return; 
-      }
       setInviteEmail("");
       await fetch_();
       alert("Thêm thành viên thành công!");
@@ -94,33 +81,21 @@ export default function MembersPage() {
   }
 
   async function handleChangeRole(memberId: string, role: Role) {
-    await fetch(`/api/admin/${tenantSlug}/members`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ memberId, role }),
-    });
+    await membersApi.updateMemberRole(tenantSlug, { memberId, role });
     await fetch_();
   }
 
   async function handleDelete(memberId: string) {
-    await fetch(`/api/admin/${tenantSlug}/members?id=${memberId}`, { method: "DELETE" });
+    await membersApi.deleteMember(tenantSlug, memberId);
     setDeleteTarget(null);
     await fetch_();
   }
 
   async function handleResetPassword(email: string) {
     try {
-      const res = await fetch("/api/auth/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      if (res.ok) {
-        alert(`Đã gửi email đặt lại mật khẩu đến ${email}`);
-        setResetPasswordTarget(null);
-      } else {
-        alert("Gửi email thất bại");
-      }
+      await authApi.forgotPassword({ email });
+      alert(`Đã gửi email đặt lại mật khẩu đến ${email}`);
+      setResetPasswordTarget(null);
     } catch {
       alert("Lỗi kết nối");
     }
@@ -208,7 +183,7 @@ export default function MembersPage() {
             </Button>
           </div>
           <p className="text-[9px] md:text-[10px] text-slate-400 font-medium">
-            Nếu email chưa có tài khoản, hệ thống sẽ gửi lời mời qua email. 
+            Nếu email chưa có tài khoản, hệ thống sẽ gửi lời mời qua email.
             ({limits.currentMembers}/{limits.maxMembers} thành viên)
           </p>
         </div>
@@ -217,7 +192,7 @@ export default function MembersPage() {
       {/* Members list */}
       <div className="space-y-2 md:space-y-3">
         {loading ? (
-          [1,2,3].map(i => <div key={i} className="h-16 md:h-20 rounded-[18px] md:rounded-[24px] bg-muted/40 animate-pulse" />)
+          [1, 2, 3].map(i => <div key={i} className="h-16 md:h-20 rounded-[18px] md:rounded-[24px] bg-muted/40 animate-pulse" />)
         ) : members.map(member => {
           const cfg = ROLE_CONFIG[member.role];
           const Icon = cfg.icon;

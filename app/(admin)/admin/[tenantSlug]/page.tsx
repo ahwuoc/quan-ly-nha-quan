@@ -24,6 +24,7 @@ import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { getSupabaseClient } from "@/lib/supabase-client";
+import { menuApi, tablesApi, ordersApi } from "@/lib/api";
 
 interface DashboardStats {
   totalItems: number;
@@ -52,21 +53,15 @@ export default function TenantDashboard() {
 
   async function fetchStats() {
     try {
-      const [itemsRes, tablesRes, ordersRes] = await Promise.all([
-        fetch(`/api/admin/${tenantSlug}/menu-items`),
-        fetch(`/api/admin/${tenantSlug}/tables`),
-        fetch(`/api/admin/${tenantSlug}/orders`),
+      const [itemsResult, tablesResult, ordersResult] = await Promise.all([
+        menuApi.getMenuItems(tenantSlug),
+        tablesApi.getTables(tenantSlug),
+        ordersApi.getOrders(tenantSlug),
       ]);
 
-      const [items, tables, orders] = await Promise.all([
-        itemsRes.json(),
-        tablesRes.json(),
-        ordersRes.json(),
-      ]);
-
-      const itemsArr = Array.isArray(items) ? items : [];
-      const tablesArr = Array.isArray(tables) ? tables : [];
-      const ordersArr = Array.isArray(orders) ? orders : [];
+      const itemsArr = Array.isArray(itemsResult.payload) ? itemsResult.payload : [];
+      const tablesArr = Array.isArray(tablesResult.payload) ? tablesResult.payload : [];
+      const ordersArr = Array.isArray(ordersResult.payload) ? ordersResult.payload : [];
 
       const revenue = ordersArr
         .filter((o: any) => o.status === "completed")
@@ -83,7 +78,7 @@ export default function TenantDashboard() {
         occupiedTables: occupied,
         totalOrdersCount: ordersArr.length,
         revenue,
-        orders: ordersArr.slice(0, 5), // Lấy 5 đơn gần nhất
+        orders: ordersArr.slice(0, 5),
       });
       setLastUpdated(new Date().toLocaleTimeString("vi-VN"));
     } catch (error) {

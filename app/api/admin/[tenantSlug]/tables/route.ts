@@ -28,7 +28,10 @@ export async function GET(
       return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
     }
 
-    const { data: tablesData, error } = await supabase
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    const query = supabase
       .from("tables")
       .select(`
         *,
@@ -42,10 +45,21 @@ export async function GET(
           )
         )
       `)
-      .eq("tenant_id", tenantId)
-      .order("number", { ascending: true });
+      .eq("tenant_id", tenantId);
+
+    if (id) {
+      query.eq("id", id);
+    } else {
+      query.order("number", { ascending: true });
+    }
+
+    const { data: tablesData, error } = await query;
 
     if (error) throw error;
+
+    if (id && (!tablesData || tablesData.length === 0)) {
+      return NextResponse.json({ error: "Table not found" }, { status: 404 });
+    }
 
     const tables = (tablesData || []).map((table: any) => {
       const activeOrders = table.orders?.filter((o: any) =>
@@ -61,6 +75,10 @@ export async function GET(
       const { orders, ...rest } = table;
       return { ...rest, current_total: currentTotal };
     });
+
+    if (id) {
+      return NextResponse.json(tables[0]);
+    }
 
     return NextResponse.json(tables);
   } catch (error) {

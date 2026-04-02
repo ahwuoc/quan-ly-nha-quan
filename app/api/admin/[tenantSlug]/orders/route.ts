@@ -26,7 +26,12 @@ export async function GET(
       return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
     }
 
-    const { data, error } = await supabase
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+    const tableId = searchParams.get("tableId");
+    const sessionId = searchParams.get("sessionId");
+
+    let query = supabase
       .from("orders")
       .select(`
         *,
@@ -36,8 +41,19 @@ export async function GET(
           menu_item:menu_items (name, price, image_url)
         )
       `)
-      .eq("tenant_id", tenantId)
-      .order("created_at", { ascending: false });
+      .eq("tenant_id", tenantId);
+
+    if (id) {
+      query = query.eq("id", id);
+    }
+    if (tableId) {
+      query = query.eq("table_id", tableId);
+    }
+    if (sessionId) {
+      query = query.eq("session_id", sessionId);
+    }
+
+    const { data, error } = await query.order("created_at", { ascending: false });
 
     if (error) throw error;
 

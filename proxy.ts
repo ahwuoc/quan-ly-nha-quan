@@ -58,11 +58,10 @@ export async function proxy(request: NextRequest) {
 async function handleTableSessionLock(
   request: NextRequest,
   response: NextResponse,
-  supabase: any,
+  supabase: ReturnType<typeof createServerClient>,
   tenantSlug: string,
   tableId: string
 ) {
-  // Ensure table_session_id exists
   let tableSessionId = request.cookies.get("table_session_id")?.value;
   if (!tableSessionId) {
     tableSessionId = crypto.randomUUID();

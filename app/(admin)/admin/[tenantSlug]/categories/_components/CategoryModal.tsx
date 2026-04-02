@@ -12,7 +12,7 @@ import ImageUpload from "@/components/ImageUpload";
 interface Category {
   id: string;
   name: string;
-  icon: string;
+  icon?: string;
   sort_order: number;
   image_url?: string;
 }

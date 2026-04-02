@@ -7,6 +7,7 @@ import { XCircle, RefreshCw, Info, ArrowRight, BellRing, UserCheck, CheckCircle2
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { guestApi } from "@/lib/api";
 
 export default function TableOccupied() {
   const params = useParams();
@@ -23,7 +24,7 @@ export default function TableOccupied() {
   const callStaff = async () => {
     setCallingStaff(true);
     try {
-      await fetch(`/api/tenants/${tenantSlug}/tables/${tableId}/payment-request`, { method: "POST" });
+      await guestApi.requestPayment(tenantSlug, tableId);
       setStaffCalled(true);
     } catch {
     } finally {

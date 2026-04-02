@@ -48,7 +48,7 @@ export default function ResetPasswordPage() {
 
       alert("Đặt lại mật khẩu thành công!");
       router.push("/auth/login");
-    } catch (err) {
+    } catch {
       setError("Lỗi kết nối");
     } finally {
       setLoading(false);

@@ -1,14 +1,12 @@
-export type CategoryId = "do-nhau" | "bia" | "nuoc-ngot" | "khac";
-
-/** @deprecated Use CategoryId */
-export type Category = CategoryId;
+export type CategoryId = string;
+export type Category = string;
 
 export interface CategoryRecord {
   id: CategoryId;
   name: string;
-  icon: string;
+  icon?: string;
   imageUrl?: string;
-  sortOrder: number;
+  sortOrder?: number;
 }
 
 export const CATEGORY_LABELS: Record<CategoryId, string> = {

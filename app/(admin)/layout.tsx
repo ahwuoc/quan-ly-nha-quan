@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { Toaster, toast } from "sonner";
 import { getSupabaseClient } from "@/lib/supabase-client";
+import { tenantsApi } from "@/lib/api";
 
 function RealtimeNotifier() {
   const params = useParams();
@@ -163,27 +164,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [pathname]);
 
-  // Check if tenant is deleted
   useEffect(() => {
     if (!tenantSlug) return;
-
     async function checkTenant() {
       try {
-        const res = await fetch(`/api/tenants/check?slug=${tenantSlug}`);
-        const data = await res.json();
-        
-        if (!res.ok || data.deleted) {
+        const result = await tenantsApi.checkTenant(tenantSlug);
+        const data = result.payload;
+
+        if (result.status !== 200 || data.deleted) {
           setIsDeleted(true);
-          
-          // Clear cookies to prevent redirect loop
           document.cookie = "last_admin_path=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
           document.cookie = "last_tenant_slug=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-          
           toast.error("Nhà hàng này đã bị tạm dừng hoạt động", {
             description: "Bạn sẽ được chuyển về trang chủ",
             duration: 2000,
           });
-          
+
           setTimeout(() => {
             router.push("/tenants");
           }, 2000);

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
+import { categoriesApi } from "@/lib/api";
 import { Plus, Pencil, Trash2, FolderOpen, GripVertical, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,7 +24,7 @@ import { cn } from "@/lib/utils";
 interface Category {
   id: string;
   name: string;
-  icon: string;
+  icon?: string;
   sort_order: number;
   image_url?: string;
 }
@@ -37,45 +38,47 @@ export default function CategoriesPage() {
   const [modal, setModal] = useState<{ open: boolean; item?: Category }>({ open: false });
   const [draggedId, setDraggedId] = useState<string | null>(null);
 
-  // States for secure deletion
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
   const [confirmDeleteText, setConfirmDeleteText] = useState("");
 
-  useEffect(() => {
-    fetchCategories();
-  }, [tenantSlug]);
-
-  async function fetchCategories() {
+  const fetchCategories = useCallback(async function () {
     try {
-      const res = await fetch(`/api/admin/${tenantSlug}/categories`);
-      const data = await res.json();
-
-      if (!res.ok) {
-        setCategories([]);
-        return;
-      }
-      setCategories(Array.isArray(data) ? data : []);
+      const result = await categoriesApi.getCategories(tenantSlug);
+      setCategories(Array.isArray(result.payload) ? result.payload : []);
     } catch (error) {
       console.error("Failed to fetch categories:", error);
       setCategories([]);
     } finally {
       setLoading(false);
     }
-  }
+  }, [tenantSlug]);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
 
   async function handleSave(category: Category) {
     if (saving) return;
     setSaving(true);
     try {
       const isNew = category.id.startsWith("c") || category.id.includes("temp");
-      const res = await fetch(`/api/admin/${tenantSlug}/categories`, {
-        method: isNew ? "POST" : "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(category),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save category");
+      
+      if (isNew) {
+        await categoriesApi.createCategory(tenantSlug, {
+          name: category.name,
+          icon: category.icon,
+          sort_order: category.sort_order,
+          image_url: category.image_url,
+        });
+      } else {
+        await categoriesApi.updateCategory(tenantSlug, {
+          id: category.id,
+          name: category.name,
+          icon: category.icon,
+          sort_order: category.sort_order,
+          image_url: category.image_url,
+        });
+      }
 
       await fetchCategories();
       setModal({ open: false });
@@ -91,10 +94,7 @@ export default function CategoriesPage() {
     if (!deleteTarget || saving) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/admin/${tenantSlug}/categories?id=${deleteTarget.id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error("Failed to delete category");
+      await categoriesApi.deleteCategory(tenantSlug, deleteTarget.id);
       await fetchCategories();
       setDeleteTarget(null);
       setConfirmDeleteText("");
@@ -146,13 +146,10 @@ export default function CategoriesPage() {
     setDraggedId(null);
 
     try {
-      for (const cat of updated) {
-        await fetch(`/api/admin/${tenantSlug}/categories`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: cat.id, sort_order: cat.sort_order }),
-        });
-      }
+      await categoriesApi.updateCategoryOrder(
+        tenantSlug,
+        updated.map(cat => ({ id: cat.id, display_order: cat.sort_order }))
+      );
     } catch (error) {
       console.error("Failed to update sort order:", error);
       alert("Lỗi khi cập nhật thứ tự");
@@ -294,7 +291,7 @@ export default function CategoriesPage() {
             <div className="space-y-2 text-center">
               <AlertDialogTitle className="text-3xl font-black text-slate-900">Xóa danh mục?</AlertDialogTitle>
               <AlertDialogDescription className="text-base font-medium text-slate-500">
-                Mọi món ăn thuộc danh mục <span className="text-red-600 font-bold underline">"{deleteTarget?.name}"</span> sẽ không hiển thị trên thực đơn. Bạn có chắc chắn?
+                Mọi món ăn thuộc danh mục <span className="text-red-600 font-bold underline">&ldquo;{deleteTarget?.name}&rdquo;</span> sẽ không hiển thị trên thực đơn. Bạn có chắc chắn?
               </AlertDialogDescription>
             </div>
           </AlertDialogHeader>
@@ -302,7 +299,7 @@ export default function CategoriesPage() {
           <div className="mt-8 space-y-4 p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
             <div className="space-y-3">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Xác thực thao tác</label>
-              <p className="text-sm text-slate-600 ml-1">Nhập <span className="font-black text-slate-900">"{deleteTarget?.name}"</span> để xác nhận xóa:</p>
+              <p className="text-sm text-slate-600 ml-1">Nhập <span className="font-black text-slate-900">&ldquo;{deleteTarget?.name}&rdquo;</span> để xác nhận xóa:</p>
               <Input
                 placeholder="Nhập tên tại đây..."
                 value={confirmDeleteText}

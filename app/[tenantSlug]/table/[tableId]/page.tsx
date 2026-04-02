@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { guestApi, GuestCreateOrderPayload } from "@/lib/api";
 
 interface MenuItem {
   id: string;
@@ -230,10 +231,9 @@ export default function TableMenu() {
   async function handleRequestPayment() {
     setRequestingPayment(true);
     try {
-      await fetch(`/api/tenants/${tenantSlug}/requests`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table_id: tableId, type: "payment" }),
+      await guestApi.requestStaff(tenantSlug, {
+        table_id: tableId,
+        type: "payment"
       });
       setPaymentRequested(true);
       setShowBill(false);
@@ -255,18 +255,11 @@ export default function TableMenu() {
         return { menu_item_id: itemId, quantity, unit_price: item?.price || 0 };
       });
       
-      const res = await fetch(`/api/tenants/${tenantSlug}/orders`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table_id: tableId, items: orderItems }),
-      });
-      
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || "Failed");
-      }
-      
+      const payload: GuestCreateOrderPayload = {
+        table_id: tableId,
+        items: orderItems,
+      };
+      await guestApi.createOrder(tenantSlug, payload);
       setCart({});
       setShowConfirm(false);
       setShowSuccess(true);

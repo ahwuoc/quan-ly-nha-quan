@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { getSupabaseClient } from "@/lib/supabase-client";
 import { useParams } from "next/navigation";
+import { requestsApi, type Request, type RequestType, type RequestStatus } from "@/lib/api/requests";
 import { Bell, CheckCircle2, RefreshCw, CreditCard, Users, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,30 +11,31 @@ import { cn } from "@/lib/utils";
 
 const supabase = getSupabaseClient();
 
-type ReqType = "payment" | "staff";
-type ReqStatus = "pending" | "done";
-
-interface TableRequest {
-  id: string;
-  table_id: string;
-  type: ReqType;
-  note: string | null;
-  status: ReqStatus;
-  created_at: string;
-  table?: { number: number };
-}
-
-const TYPE_CONFIG: Record<ReqType, { label: string; icon: React.ElementType; accent: string; bg: string }> = {
-  payment: { label: "Thanh toán",    icon: CreditCard, accent: "text-amber-600",  bg: "bg-amber-50 border-amber-100"  },
-  staff:   { label: "Gọi nhân viên", icon: Users,      accent: "text-blue-600",   bg: "bg-blue-50 border-blue-100"    },
+const TYPE_CONFIG: Record<RequestType, { label: string; icon: React.ElementType; accent: string; bg: string }> = {
+  payment: { label: "Thanh toán", icon: CreditCard, accent: "text-amber-600", bg: "bg-amber-50 border-amber-100" },
+  staff: { label: "Gọi nhân viên", icon: Users, accent: "text-blue-600", bg: "bg-blue-50 border-blue-100" },
+  water: { label: "Gọi nước", icon: Bell, accent: "text-cyan-600", bg: "bg-cyan-50 border-cyan-100" },
+  other: { label: "Khác", icon: Bell, accent: "text-slate-600", bg: "bg-slate-50 border-slate-100" },
 };
 
 export default function RequestsPage() {
   const { tenantSlug } = useParams() as { tenantSlug: string };
-  const [requests, setRequests] = useState<TableRequest[]>([]);
+  const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDone, setShowDone] = useState(false);
-  const [activeType, setActiveType] = useState<ReqType | "all">("all");
+  const [activeType, setActiveType] = useState<RequestType | "all">("all");
+
+
+
+  const fetch_ = useCallback(async function () {
+    setLoading(true);
+    try {
+      const result = await requestsApi.getRequests(tenantSlug);
+      if (Array.isArray(result.payload)) setRequests(result.payload);
+    } finally {
+      setLoading(false);
+    }
+  }, [tenantSlug]);
 
   useEffect(() => {
     fetch_();
@@ -42,26 +44,11 @@ export default function RequestsPage() {
       .on("postgres_changes", { event: "*", schema: "public", table: "table_requests" }, fetch_)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [tenantSlug]);
-
-  async function fetch_() {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/admin/${tenantSlug}/requests`);
-      const data = await res.json();
-      if (Array.isArray(data)) setRequests(data);
-    } finally {
-      setLoading(false);
-    }
-  }
+  }, [fetch_]);
 
   async function markDone(id: string) {
     setRequests(prev => prev.map(r => r.id === id ? { ...r, status: "done" } : r));
-    await fetch(`/api/admin/${tenantSlug}/requests`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status: "done" }),
-    });
+    await requestsApi.updateRequestStatus(tenantSlug, { id, status: "done" });
   }
 
   const pending = requests.filter(r => r.status === "pending");
@@ -104,9 +91,9 @@ export default function RequestsPage() {
       {/* Type tabs */}
       <div className="flex overflow-x-auto p-1 md:p-1.5 bg-muted/60 rounded-[20px] md:rounded-[28px] w-full md:w-fit border shadow-inner gap-1 scrollbar-hide">
         {([
-          { id: "all",     label: "Tất cả",        count: pending.length },
-          { id: "payment", label: "Thanh toán",     count: pending.filter(r => r.type === "payment").length },
-          { id: "staff",   label: "Gọi nhân viên",  count: pending.filter(r => r.type === "staff").length },
+          { id: "all", label: "Tất cả", count: pending.length },
+          { id: "payment", label: "Thanh toán", count: pending.filter(r => r.type === "payment").length },
+          { id: "staff", label: "Gọi nhân viên", count: pending.filter(r => r.type === "staff").length },
         ] as const).map(tab => (
           <Button
             key={tab.id}
@@ -125,7 +112,7 @@ export default function RequestsPage() {
       {/* Cards */}
       {loading && requests.length === 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-          {[1,2,3].map(i => <div key={i} className="h-40 rounded-[20px] md:rounded-[32px] bg-muted/40 animate-pulse" />)}
+          {[1, 2, 3].map(i => <div key={i} className="h-40 rounded-[20px] md:rounded-[32px] bg-muted/40 animate-pulse" />)}
         </div>
       ) : filtered.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
@@ -149,7 +136,7 @@ export default function RequestsPage() {
 
                 <div>
                   <p className={cn("font-black text-sm md:text-base tracking-tight", cfg.accent)}>{cfg.label}</p>
-                  {req.note && <p className="text-[10px] md:text-xs text-slate-500 mt-0.5 italic">"{req.note}"</p>}
+                  {req.note && <p className="text-[10px] md:text-xs text-slate-500 mt-0.5 italic">&ldquo;{req.note}&rdquo;</p>}
                   <p className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2 flex items-center gap-1">
                     <Clock className="size-2.5 md:size-3" />
                     {new Date(req.created_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}

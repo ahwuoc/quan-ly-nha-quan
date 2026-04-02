@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
+import { permissionsApi } from "@/lib/api";
 import { Shield, Crown, UserCheck, RefreshCw, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -41,31 +42,31 @@ export default function PermissionsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
 
-  useEffect(() => { fetchPermissions(); }, [tenantSlug]);
-
-  async function fetchPermissions() {
+  const fetchPermissions = useCallback(async function () {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/${tenantSlug}/permissions`);
-      const data = await res.json();
+      const result = await permissionsApi.getPermissions(tenantSlug);
+      const data = result.payload;
       if (data.permissions) {
-        setPermissions(data.permissions);
-        setRolePermissions(data.rolePermissions);
+        setPermissions(data.permissions as any);
+        setRolePermissions(data.rolePermissions as any);
       }
+    } catch (error) {
+      console.error("Failed to fetch permissions:", error);
     } finally {
       setLoading(false);
     }
-  }
+  }, [tenantSlug]);
+
+  useEffect(() => { fetchPermissions(); }, [fetchPermissions]);
 
   async function togglePermission(role: Role, permissionId: string, enabled: boolean) {
     setSaving(`${role}-${permissionId}`);
     try {
-      await fetch(`/api/admin/${tenantSlug}/permissions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, permissionId, enabled }),
-      });
+      await permissionsApi.updatePermission(tenantSlug, { role, permissionId, enabled });
       await fetchPermissions();
+    } catch (error) {
+      console.error("Failed to update permission:", error);
     } finally {
       setSaving(null);
     }

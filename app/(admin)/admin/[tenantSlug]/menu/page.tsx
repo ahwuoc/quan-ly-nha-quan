@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { useParams } from "next/navigation";
+import { menuApi, categoriesApi } from "@/lib/api";
 import {
   Plus,
   Pencil,
@@ -14,7 +16,7 @@ import {
   CheckCircle2,
   XCircle
 } from "lucide-react";
-import { CATEGORY_LABELS, CATEGORY_ICONS, type Category, type MenuItem } from "@/lib/types";
+import { CATEGORY_LABELS, CATEGORY_ICONS, type Category, type MenuItem, type CategoryRecord } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -39,35 +41,37 @@ export default function MenuPage() {
   const params = useParams();
   const tenantSlug = params.tenantSlug as string;
   const [items, setItems] = useState<MenuItem[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<CategoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [filterCat, setFilterCat] = useState<string | "all">("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [modal, setModal] = useState<{ open: boolean; item?: MenuItem }>({ open: false });
-  
+
   const [deleteTarget, setDeleteTarget] = useState<MenuItem | null>(null);
   const [confirmDeleteText, setConfirmDeleteText] = useState("");
 
-  useEffect(() => {
-    fetchData();
-  }, [tenantSlug]);
-
-  async function fetchData() {
+  const fetchData = useCallback(async function () {
     setLoading(true);
     try {
-      const [itemsRes, categoriesRes] = await Promise.all([
-        fetch(`/api/admin/${tenantSlug}/menu-items`),
-        fetch(`/api/admin/${tenantSlug}/categories`),
+      const [itemsResult, categoriesResult] = await Promise.all([
+        menuApi.getMenuItems(tenantSlug),
+        categoriesApi.getCategories(tenantSlug),
       ]);
 
-      const itemsData = await itemsRes.json();
-      const categoriesData = await categoriesRes.json();
+      const itemsData = itemsResult.payload;
+      const categoriesData = categoriesResult.payload;
 
-      setCategories(Array.isArray(categoriesData) ? categoriesData : []);
+      setCategories(Array.isArray(categoriesData) ? (categoriesData as any[]).map(c => ({
+        id: c.id,
+        name: c.name,
+        icon: c.icon,
+        imageUrl: c.image_url,
+        sortOrder: c.sort_order
+      })) : []);
 
       if (Array.isArray(itemsData)) {
-        setItems(itemsData.map((item: any) => ({
+        setItems(itemsData.map((item) => ({
           id: item.id,
           name: item.name,
           price: Number(item.price) || 0,
@@ -83,7 +87,11 @@ export default function MenuPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [tenantSlug]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   async function fetchItems() {
     fetchData();
@@ -94,20 +102,23 @@ export default function MenuPage() {
     setSaving(true);
     try {
       const isNew = item.id.startsWith("m") || item.id.startsWith("temp-");
-      const res = await fetch(`/api/admin/${tenantSlug}/menu-items`, {
-        method: isNew ? "POST" : "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const payload = {
+        category_id: item.category || item.categoryId,
+        name: item.name,
+        price: item.price,
+        description: item.description,
+        available: item.available,
+        image_url: item.image,
+      };
+
+      if (isNew) {
+        await menuApi.createMenuItem(tenantSlug, payload);
+      } else {
+        await menuApi.updateMenuItem(tenantSlug, {
           id: item.id,
-          name: item.name,
-          price: item.price,
-          category_id: item.category || item.categoryId,
-          description: item.description,
-          available: item.available,
-          image_url: (item as any).image_url || item.image,
-        }),
-      });
-      if (!res.ok) throw new Error(`Failed to save item`);
+          ...payload,
+        });
+      }
 
       await fetchData();
       setModal({ open: false });
@@ -123,10 +134,7 @@ export default function MenuPage() {
     if (!deleteTarget || saving) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/admin/${tenantSlug}/menu-items?id=${deleteTarget.id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error("Failed to delete item");
+      await menuApi.deleteMenuItem(tenantSlug, deleteTarget.id);
       await fetchData();
       setDeleteTarget(null);
       setConfirmDeleteText("");
@@ -142,12 +150,7 @@ export default function MenuPage() {
     const item = items.find(i => i.id === id);
     if (!item) return;
     try {
-      const res = await fetch(`/api/admin/${tenantSlug}/menu-items?id=${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ available: !item.available }),
-      });
-      if (!res.ok) throw new Error("Failed to update item");
+      await menuApi.toggleAvailability(tenantSlug, id, !item.available);
       await fetchData();
     } catch (error) {
       console.error("Failed to toggle availability:", error);
@@ -255,13 +258,12 @@ export default function MenuPage() {
             )}>
               <div className="aspect-[4/3] bg-slate-50 relative flex items-center justify-center overflow-hidden">
                 {item.image ? (
-                  <img
+                  <Image
                     src={item.image}
                     alt={item.name}
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = `https://placehold.co/600x400?text=${encodeURIComponent(item.name)}`;
-                    }}
+                    fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                   />
                 ) : (
                   <div className="bg-primary/5 size-full flex items-center justify-center">
@@ -287,11 +289,11 @@ export default function MenuPage() {
 
                 <div className="flex items-center justify-between">
                   <Badge variant="outline" className="rounded-xl px-2 md:px-3 py-0.5 md:py-1 bg-slate-50 border-none text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                    {categories.find(c => c.id === (item.category || item.categoryId))?.name || "Khác"}
+                    {categories.find(c => c.id === (item.category || item.categoryId))?.name as string || "Khác"}
                   </Badge>
-                  
+
                   <div className="flex gap-1.5 md:gap-2">
-                     <Button
+                    <Button
                       variant="secondary"
                       size="icon"
                       className="size-8 md:size-10 rounded-xl bg-slate-50 border-none text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors"
@@ -315,8 +317,8 @@ export default function MenuPage() {
                   size="sm"
                   className={cn(
                     "w-full h-10 md:h-12 rounded-xl md:rounded-2xl font-bold transition-all border-2 text-xs md:text-sm",
-                    item.available 
-                      ? "border-slate-100 text-slate-600 hover:border-primary/20 hover:text-primary" 
+                    item.available
+                      ? "border-slate-100 text-slate-600 hover:border-primary/20 hover:text-primary"
                       : "bg-slate-900 text-white"
                   )}
                   onClick={() => toggleAvailable(item.id)}
@@ -354,8 +356,8 @@ export default function MenuPage() {
       )}
 
       {/* SECURE DELETE MENU ITEM */}
-      <AlertDialog 
-        open={!!deleteTarget} 
+      <AlertDialog
+        open={!!deleteTarget}
         onOpenChange={(open) => {
           if (!open) {
             setDeleteTarget(null);
@@ -370,11 +372,11 @@ export default function MenuPage() {
                 <Trash2 className="size-10 text-red-500" />
               </div>
             </div>
-            
+
             <div className="space-y-2 text-center">
               <AlertDialogTitle className="text-3xl font-black text-slate-900">Gỡ bỏ món ăn?</AlertDialogTitle>
               <AlertDialogDescription className="text-base font-medium text-slate-500">
-                Bạn sắp gỡ món <span className="text-red-600 font-bold underline">"{deleteTarget?.name}"</span> khỏi hệ thống. Thao tác này không thể hoàn tác.
+                Bạn sắp gỡ món <span className="text-red-600 font-bold underline">&ldquo;{deleteTarget?.name}&rdquo;</span> khỏi hệ thống. Thao tác này không thể hoàn tác.
               </AlertDialogDescription>
             </div>
           </AlertDialogHeader>
@@ -382,7 +384,7 @@ export default function MenuPage() {
           <div className="mt-8 space-y-4 p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
             <div className="space-y-3">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Xác thực hệ thống</label>
-              <p className="text-sm text-slate-600 ml-1">Vui lòng nhập <span className="font-black text-slate-900">"{deleteTarget?.name}"</span> để xóa:</p>
+              <p className="text-sm text-slate-600 ml-1">Vui lòng nhập <span className="font-black text-slate-900">&ldquo;{deleteTarget?.name}&rdquo;</span> để xóa:</p>
               <Input
                 placeholder="Nhập tên món ăn..."
                 value={confirmDeleteText}

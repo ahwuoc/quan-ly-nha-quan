@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Upload, X, ImageIcon, Loader2 } from "lucide-react";
+import { Upload, X, Loader2 } from "lucide-react";
+import Image from "next/image";
 
 interface Props {
   value?: string;
@@ -25,7 +26,7 @@ export default function ImageUpload({ value, onChange, folder = "general" }: Pro
       const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `${folder}/${fileName}`;
 
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from("images")
         .upload(filePath, file);
 
@@ -48,7 +49,7 @@ export default function ImageUpload({ value, onChange, folder = "general" }: Pro
     <div className="flex flex-col gap-4">
       {value ? (
         <div className="relative aspect-video rounded-lg overflow-hidden border bg-muted">
-          <img src={value} alt="Uploaded" className="w-full h-full object-cover" />
+          <Image src={value} alt="Uploaded" className="w-full h-full object-cover" fill sizes="100vw" />
           <Button
             type="button"
             variant="destructive"

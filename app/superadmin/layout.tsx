@@ -61,7 +61,7 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
         if (!d.isSuperAdmin) router.replace("/tenants");
         else setChecking(false);
       });
-  }, []);
+  }, [router]);
 
   if (checking) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950">
