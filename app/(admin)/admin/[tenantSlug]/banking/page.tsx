@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
+import { getSupabaseClient } from "@/lib/supabase-client";
 import { tenantsApi, type TenantSettings } from "@/lib/api/tenants";
 import {
    CreditCard,
@@ -39,10 +40,19 @@ export default function BankingPage() {
    const [banks, setBanks] = useState<any[]>([]);
    const [loading, setLoading] = useState(true);
    const [saving, setSaving] = useState(false);
+   const [isOwner, setIsOwner] = useState(false);
 
    const fetchSettings = useCallback(async function () {
       try {
-         const result = await tenantsApi.getSettings(tenantSlug);
+         const supabase = getSupabaseClient();
+         const { data: { user } } = await supabase.auth.getUser();
+
+         const [settingsResult, membershipResult] = await Promise.all([
+            tenantsApi.getSettings(tenantSlug),
+            user ? supabase.from("tenant_users").select("role").eq("user_id", user.id).maybeSingle() : Promise.resolve({ data: null })
+         ]);
+
+         const result = settingsResult;
          const sanitized = {
             ...result.payload,
             bank_name: result.payload.bank_name || "",
@@ -51,6 +61,7 @@ export default function BankingPage() {
             bank_qr_enabled: !!result.payload.bank_qr_enabled
          };
          setData(sanitized);
+         setIsOwner((membershipResult?.data as any)?.role === "owner");
       } catch (error) {
          console.error(error);
          toast.error("Không thể tải thông tin ngân hàng");
@@ -61,7 +72,6 @@ export default function BankingPage() {
 
    useEffect(() => {
       fetchSettings();
-      // Fetch bank list from sepay
       fetch("https://qr.sepay.vn/banks.json")
          .then(res => res.json())
          .then(json => {
@@ -174,7 +184,7 @@ export default function BankingPage() {
                      </div>
                      <Switch
                         checked={data.bank_qr_enabled}
-                        onCheckedChange={(val) => setData({ ...data, bank_qr_enabled: val })}
+                        disabled={!isOwner} onCheckedChange={(val) => isOwner && setData({ ...data, bank_qr_enabled: val })}
                         className="scale-110 data-[state=checked]:bg-primary"
                      />
                   </div>
@@ -214,7 +224,7 @@ export default function BankingPage() {
 
                            <Select
                               value={data.bank_name}
-                              onValueChange={(val) => setData({ ...data, bank_name: val })}
+                              disabled={!isOwner} onValueChange={(val) => isOwner && setData({ ...data, bank_name: val })}
                            >
                               <SelectTrigger className="h-14 rounded-2xl bg-slate-50 border-none font-bold text-lg focus:ring-primary/20">
                                  <SelectValue placeholder="Bấm để chọn ngân hàng" />
@@ -244,7 +254,7 @@ export default function BankingPage() {
                               placeholder="Nhập số tài khoản của bạn"
                               className="h-14 rounded-2xl bg-slate-50 border-none font-bold text-lg focus-visible:ring-primary/20 font-mono"
                               value={data.bank_account_number || ""}
-                              onChange={(e) => setData({ ...data, bank_account_number: e.target.value })}
+                              disabled={!isOwner} onChange={(e) => isOwner && setData({ ...data, bank_account_number: e.target.value })}
                            />
                         </div>
 
@@ -256,7 +266,7 @@ export default function BankingPage() {
                               placeholder="Viết hoa không dấu (VD: NGUYEN VAN A)"
                               className="h-14 rounded-2xl bg-slate-50 border-none font-bold text-lg focus-visible:ring-primary/20 uppercase"
                               value={data.bank_account_name || ""}
-                              onChange={(e) => setData({ ...data, bank_account_name: e.target.value })}
+                              disabled={!isOwner} onChange={(e) => isOwner && setData({ ...data, bank_account_name: e.target.value })}
                            />
                         </div>
                      </div>
@@ -281,6 +291,7 @@ export default function BankingPage() {
             </div>
          </div>
 
+{isOwner && (
          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-5xl px-8 pointer-events-none z-50">
             <Button
                className="w-full h-16 rounded-[28px] bg-primary hover:bg-primary/90 text-white font-black shadow-2xl shadow-primary/30 text-lg tracking-tight pointer-events-auto transition-transform active:scale-95 flex items-center justify-center gap-3"
@@ -296,6 +307,7 @@ export default function BankingPage() {
                )}
             </Button>
          </div>
+)}
       </div>
    );
 }

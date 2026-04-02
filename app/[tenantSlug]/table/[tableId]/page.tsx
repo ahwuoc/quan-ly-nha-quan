@@ -566,9 +566,6 @@ export default function TableMenu() {
             <div className="flex items-center gap-4">
               <button onClick={() => setShowHistory(false)} className="size-12 rounded-[24px] bg-slate-50 flex items-center justify-center active:scale-90 transition-all text-slate-500"><ArrowLeft size={24} /></button>
               <div className="flex flex-col flex-1"><h2 className="text-2xl font-black tracking-tighter uppercase text-slate-900 leading-none">Món đã đặt</h2><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Sẵn sàng phục vụ bạn.</p></div>
-              {isLeader && activeOrders.length > 0 && (
-                <Button variant="outline" onClick={() => setShowEndSessionConfirm(true)} className="rounded-2xl border-rose-100 text-rose-500 hover:bg-rose-50 font-black text-[10px] uppercase py-6 px-5"><LogOut size={14} className="mr-2" /> KẾT THÚC</Button>
-              )}
             </div>
 
             <div className="space-y-4">
@@ -664,9 +661,6 @@ export default function TableMenu() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={showEndSessionConfirm} onOpenChange={setShowEndSessionConfirm}>
-          <DialogContent className="sm:max-w-sm rounded-[40px] p-8 border-none bg-white shadow-2xl text-center"><div className="size-16 bg-rose-100 text-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-4"><LogOut size={32} /></div><DialogHeader><DialogTitle className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Kết thúc lượt ăn?</DialogTitle><DialogDescription className="text-xs font-bold text-slate-400 mt-2">Dọn bàn cho lượt khách sau.</DialogDescription></DialogHeader><div className="grid grid-cols-2 gap-3 mt-8"><Button variant="outline" className="h-14 rounded-2xl font-bold" onClick={() => setShowEndSessionConfirm(false)}>KHÔNG</Button><Button variant="default" className="h-14 rounded-2xl font-black bg-rose-500 text-white" onClick={handleEndSession}>ĐỒNG Ý</Button></div></DialogContent>
-        </Dialog>
 
         <Dialog open={cancelModal.open} onOpenChange={(open) => setCancelModal({ ...cancelModal, open })}>
           <DialogContent className="sm:max-w-sm rounded-[40px] p-8 border-none bg-white shadow-2xl text-center"><div className="size-16 bg-rose-100 text-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-4"><XCircle size={32} /></div><DialogHeader><DialogTitle className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Hủy đơn hàng này?</DialogTitle><DialogDescription className="text-xs font-bold text-slate-400 mt-2">Đơn hàng của bạn sẽ được xóa bỏ.</DialogDescription></DialogHeader><div className="grid grid-cols-2 gap-3 mt-8"><Button variant="outline" className="h-14 rounded-2xl font-bold" onClick={() => setCancelModal({ open: false, orderId: null })}>QUAY LẠI</Button><Button variant="default" className="h-14 rounded-2xl font-black bg-rose-500 text-white" disabled={isSubmitting} onClick={confirmCancelOrder}>{isSubmitting ? <RefreshCw className="animate-spin" /> : "XÁC NHẬN"}</Button></div></DialogContent>
@@ -715,13 +709,6 @@ export default function TableMenu() {
                   <span className="text-[10px] font-mono font-bold text-slate-700 uppercase tracking-tight">BAN {table?.number} {tenantConfig?.slug}</span>
                 </div>
               </div>
-
-              <Button
-                className="w-full h-14 rounded-2xl bg-slate-900 text-white font-black text-sm uppercase tracking-tight"
-                onClick={() => setShowPaymentQR(false)}
-              >
-                ĐÃ THANH TOÁN
-              </Button>
               <p className="text-[8px] font-bold text-slate-400 uppercase italic leading-relaxed text-center">
                 Vui lòng giữ lại màn hình giao dịch thành công để nhân viên đối soát nếu cần.
               </p>

@@ -18,6 +18,7 @@ export type CreateTenantPayload = {
 };
 
 export type TenantSettings = {
+  id: string;
   allowed_ips: string[];
   ip_restriction_enabled: boolean;
   name: string;
@@ -57,14 +58,12 @@ export const tenantsApi = {
     });
   },
 
-  // Delete a tenant
   deleteTenant: (tenantId: string, hard: boolean = false) => {
     return HTTP.DELETE<{ success: boolean }>(
       `/api/tenants?id=${tenantId}${hard ? '&hard=true' : ''}`
     );
   },
 
-  // Restore an archived tenant
   restoreTenant: (tenantId: string) => {
     return HTTP.PATCH<{ success: boolean }>(`/api/tenants?id=${tenantId}&restore=true`);
   },

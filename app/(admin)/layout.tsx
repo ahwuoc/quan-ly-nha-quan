@@ -3,12 +3,92 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useParams, useRouter } from "next/navigation";
-import { LayoutDashboard, UtensilsCrossed, Grid3x3, Tag, ShoppingCart, Shield, ChevronLeft, TrendingUp, Bell, Users, Key, CreditCard } from "lucide-react";
+import { LayoutDashboard, UtensilsCrossed, Grid3x3, Tag, ShoppingCart, Shield, ChevronLeft, TrendingUp, Bell, Users, Key, CreditCard, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { Toaster, toast } from "sonner";
 import { getSupabaseClient } from "@/lib/supabase-client";
-import { tenantsApi } from "@/lib/api";
+import { tenantsApi, tablesApi } from "@/lib/api";
+
+function PaymentHeader({ tenantSlug }: { tenantSlug: string }) {
+  const [requestingTables, setRequestingTables] = useState<any[]>([]);
+  const supabase = getSupabaseClient();
+
+  useEffect(() => {
+    async function fetchRequests() {
+      const { data } = await supabase
+        .from("tables")
+        .select("id, number, payment_requested")
+        .eq("payment_requested", true);
+      setRequestingTables(data || []);
+    }
+    fetchRequests();
+
+    const channel = supabase
+      .channel("payment-header-sync")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "tables" },
+        (payload) => {
+          if (payload.new.payment_requested) {
+            setRequestingTables(prev => {
+              if (prev.find(t => t.id === payload.new.id)) return prev;
+              return [...prev, payload.new];
+            });
+          } else {
+            setRequestingTables(prev => prev.filter(t => t.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [tenantSlug, supabase]);
+
+  const handleDismiss = async (e: React.MouseEvent, tableId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await tablesApi.clearPaymentRequest(tenantSlug, tableId);
+      toast.success("Đã ghi nhận yêu cầu!");
+    } catch (error) {
+      toast.error("Lỗi khi xóa yêu cầu!");
+    }
+  };
+
+  if (requestingTables.length === 0) return null;
+
+  return (
+    <div className="bg-rose-500 text-white py-2.5 px-4 flex items-center justify-center gap-4 animate-in slide-in-from-top duration-500 sticky top-0 z-50 shadow-lg overflow-x-auto no-scrollbar whitespace-nowrap">
+      <div className="flex items-center gap-2 font-black text-xs uppercase tracking-tighter shrink-0">
+        <CreditCard className="size-4 animate-pulse" />
+        <span>Yêu cầu thanh toán:</span>
+      </div>
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pr-4">
+        {requestingTables.sort((a, b) => a.number - b.number).map(table => (
+          <div
+            key={table.id}
+            className="group/item flex items-center gap-0.5"
+          >
+            <Link
+              href={`/admin/${tenantSlug}/tables`}
+              className="bg-white/20 hover:bg-white/40 transition-colors px-3 py-1 rounded-l-full text-xs font-black ring-1 ring-white/30 flex items-center gap-1.5"
+            >
+              Bàn {table.number}
+            </Link>
+            <button
+              onClick={(e) => handleDismiss(e, table.id)}
+              className="bg-white/10 hover:bg-white/40 transition-colors px-2 py-1 rounded-r-full text-[10px] font-black ring-1 ring-white/30 border-l border-white/20"
+              title="Đã xem"
+            >
+              <X size={10} strokeWidth={4} />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function RealtimeNotifier() {
   const params = useParams();
@@ -215,10 +295,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="flex min-h-screen relative">
-      <Sidebar />
-      <RealtimeNotifier />
-      <main className="flex-1 overflow-auto bg-muted/30 lg:ml-0">{children}</main>
+    <div className="flex flex-col min-h-screen relative">
+      <PaymentHeader tenantSlug={tenantSlug} />
+      <div className="flex flex-1">
+        <Sidebar />
+        <RealtimeNotifier />
+        <main className="flex-1 overflow-auto bg-muted/30 lg:ml-0">{children}</main>
+      </div>
       <Toaster position="top-right" richColors expand />
     </div>
   );

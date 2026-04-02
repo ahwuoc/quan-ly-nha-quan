@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { getSupabaseClient } from "@/lib/supabase-client";
 import { useParams } from "next/navigation";
 import { tenantsApi, type TenantSettings as SettingsData } from "@/lib/api/tenants";
 import { Shield, Save, Plus, X, Globe, Lock, AlertCircle, Info, Clock, RefreshCw, Zap } from "lucide-react";
@@ -22,6 +23,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [newIp, setNewIp] = useState("");
+  const [isOwner, setIsOwner] = useState(false);
 
   const fetchSettings = useCallback(async function () {
     try {
@@ -36,6 +38,18 @@ export default function SettingsPage() {
         wifi_password: result.payload.wifi_password || ""
       };
       setData(sanitized);
+
+      const supabase = getSupabaseClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: member } = await supabase
+          .from("tenant_users")
+          .select("role")
+          .eq("tenant_id", result.payload.id)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        setIsOwner((member as any)?.role === "owner");
+      }
     } catch (error) {
       console.error(error);
     } finally {
@@ -109,7 +123,8 @@ export default function SettingsPage() {
             </div>
             <Switch
               checked={data.ip_restriction_enabled}
-              onCheckedChange={(checked) => setData({ ...data, ip_restriction_enabled: checked })}
+              disabled={!isOwner}
+              onCheckedChange={(checked) => isOwner && setData({ ...data, ip_restriction_enabled: checked })}
               className="scale-110 md:scale-125 data-[state=checked]:bg-emerald-500"
             />
           </div>
@@ -150,7 +165,8 @@ export default function SettingsPage() {
                 </div>
                 <Switch
                   checked={data.ip_auto_sync}
-                  onCheckedChange={(checked) => setData({ ...data, ip_auto_sync: checked })}
+                  disabled={!isOwner}
+                  onCheckedChange={(checked) => isOwner && setData({ ...data, ip_auto_sync: checked })}
                 />
               </div>
               <p className="text-[10px] text-slate-500 font-medium leading-relaxed italic">
@@ -173,9 +189,10 @@ export default function SettingsPage() {
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase text-slate-400 pl-1">Tên Wi-Fi (SSID)</label>
                 <Input
-                  placeholder="VD: Sanmyshi_Coffee"
+                  placeholder="VD: AQ_Coffee"
                   value={data.wifi_name}
-                  onChange={(e) => setData({ ...data, wifi_name: e.target.value })}
+                  disabled={!isOwner}
+                  onChange={(e) => isOwner && setData({ ...data, wifi_name: e.target.value })}
                   className="rounded-2xl h-12 bg-muted/40 border-none px-5 font-bold"
                 />
               </div>
@@ -184,7 +201,8 @@ export default function SettingsPage() {
                 <Input
                   placeholder="VD: 88888888"
                   value={data.wifi_password}
-                  onChange={(e) => setData({ ...data, wifi_password: e.target.value })}
+                  disabled={!isOwner}
+                  onChange={(e) => isOwner && setData({ ...data, wifi_password: e.target.value })}
                   className="rounded-2xl h-12 bg-muted/40 border-none px-5 font-bold"
                 />
               </div>
@@ -205,7 +223,8 @@ export default function SettingsPage() {
               <Input
                 type="number"
                 value={data.order_cancel_window || 120}
-                onChange={(e) => setData({ ...data, order_cancel_window: parseInt(e.target.value) || 0 })}
+                disabled={!isOwner}
+                onChange={(e) => isOwner && setData({ ...data, order_cancel_window: parseInt(e.target.value) || 0 })}
                 className="h-14 rounded-2xl bg-muted/40 border-none font-black text-xl text-center focus-visible:ring-primary/20 shadow-inner"
               />
               <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Giây</span>
@@ -228,7 +247,7 @@ export default function SettingsPage() {
                     variant="ghost"
                     size="icon"
                     className="size-6 rounded-xl hover:bg-red-50 hover:text-red-500"
-                    onClick={() => removeIp(ip)}
+                    onClick={() => isOwner && removeIp(ip)}
                   >
                     <X size={14} />
                   </Button>
@@ -247,12 +266,14 @@ export default function SettingsPage() {
                 placeholder="Nhập IP thủ công (vd: 1.254.x.x)"
                 className="rounded-2xl h-12 border-none bg-muted/40 focus-visible:ring-primary/20 font-mono font-bold px-5"
                 value={newIp}
-                onChange={(e) => setNewIp(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addIp(newIp)}
+                disabled={!isOwner}
+                onChange={(e) => isOwner && setNewIp(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && isOwner && addIp(newIp)}
               />
               <Button
                 className="h-12 rounded-2xl px-8 bg-primary hover:bg-primary/90 text-white font-black shadow-lg shadow-primary/10"
-                onClick={() => addIp(newIp)}
+                onClick={() => isOwner && addIp(newIp)}
+                disabled={!isOwner}
               >
                 <Plus className="size-5 mr-2" /> THÊM
               </Button>
@@ -272,21 +293,23 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <div className="fixed bottom-4 md:bottom-8 left-1/2 -translate-x-1/2 w-full max-w-4xl px-3 md:px-4 lg:px-8 pointer-events-none z-50">
-        <Button
-          className="w-full h-14 md:h-16 rounded-[20px] md:rounded-[28px] bg-primary hover:bg-primary/90 text-white font-black shadow-2xl shadow-primary/30 text-sm md:text-lg tracking-tight pointer-events-auto transition-transform active:scale-95"
-          onClick={handleSave}
-          disabled={saving}
-        >
-          {saving ? (
-            <RefreshCw className="size-5 md:size-6 animate-spin" />
-          ) : (
-            <>
-              <Save className="size-5 md:size-6 mr-2 md:mr-3" /> LƯU THAY ĐỔI CẤU HÌNH
-            </>
-          )}
-        </Button>
-      </div>
+      {isOwner && (
+        <div className="fixed bottom-4 md:bottom-8 left-1/2 -translate-x-1/2 w-full max-w-4xl px-3 md:px-4 lg:px-8 pointer-events-none z-50">
+          <Button
+            className="w-full h-14 md:h-16 rounded-[20px] md:rounded-[28px] bg-primary hover:bg-primary/90 text-white font-black shadow-2xl shadow-primary/30 text-sm md:text-lg tracking-tight pointer-events-auto transition-transform active:scale-95"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? (
+              <RefreshCw className="size-5 md:size-6 animate-spin" />
+            ) : (
+              <>
+                <Save className="size-5 md:size-6 mr-2 md:mr-3" /> LƯU THAY ĐỔI CẤU HÌNH
+              </>
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

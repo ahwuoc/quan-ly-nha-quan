@@ -55,6 +55,19 @@ export async function PATCH(
     const { tenantSlug } = await params;
     const body = await request.json();
     const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { data: membership } = await supabase
+      .from("tenant_users")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("tenant_id", (await supabase.from("tenants").select("id").eq("slug", tenantSlug).single()).data?.id)
+      .single();
+
+    if (!membership || membership.role !== "owner") {
+      return NextResponse.json({ error: "Only owners can edit settings" }, { status: 403 });
+    }
 
     const { error } = await (supabase.from("tenants") as any)
       .update({
